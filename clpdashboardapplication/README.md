@@ -3,6 +3,27 @@ SVC CLP Sign in and dashboard system
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
+## Our Architecture
+
+The CLP Dashboard is built using a modern three-tier architecture:
+
+### Frontend
+- **React + TypeScript**: Type script is the language we are using for frontend use, while react is our backend stuff.
+- **React Router**: Client-side routing for navigation between login and role-based dashboards (Student, Professor, Admin)
+
+### Backend / APIs
+- **Private Apache Web Server**: Hosts the application and exposes RESTful APIs
+- **Database**: Private server database storing user credentials, student data, professor information, and admin records
+- **API Endpoints**: Custom endpoints that retrieve and manage data from the private database
+
+### Deployment
+- Application runs entirely on a private server with Apache
+- App communicates with backend APIs for authentication and data retrieval
+- All data is stored and managed securely on the private server database
+
+### Current Development Setup (Mock Server)
+During development, a mock JSON Server (`server.js`) simulates the backend APIs for testing login functionality and dashboard features before deployment to production.
+
 ## Available Scripts
 
 In the project directory, you can run:
