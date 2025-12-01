@@ -36,12 +36,6 @@
           "title": "Chemistry II",
           "code": "CHEM201",
           "semester": "Fall 2025"
-        },
-        {
-          "title": "Chem3",
-          "code": "CHEM543",
-          "semester": "Fall 2025",
-          "id": 3
         }
       ]
     }

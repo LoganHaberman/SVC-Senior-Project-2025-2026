@@ -1,4 +1,4 @@
-// json-server-custom.js
+// server.js
 const jsonServer = require('json-server');
 const path = require('path');
 
@@ -9,14 +9,14 @@ const middlewares = jsonServer.defaults();
 server.use(middlewares);
 server.use(jsonServer.bodyParser);
 
-// Custom login endpoint
+// Login endpoint
 server.post('/api/login', (req, res) => {
   const { username, password } = req.body;
   const db = router.db; // lowdb instance
   const user = db.get('users').find({ username, password }).value();
 
   if (user) {
-    // Return minimal info: role and a fake token
+    // Role is returned as well as a token that may be used for further authorization or something interesting later
     res.json({ success: true, role: user.role, token: 'fake-jwt-token' });
   } else {
     res.status(401).json({ success: false, message: 'Invalid credentials' });
@@ -51,6 +51,25 @@ server.post('/api/professors/:id/classes', (req, res) => {
   profRef.get('classes').push(newClass).write();
 
   res.status(201).json(newClass);
+});
+
+// Delete a class from a professor's classes list
+server.delete('/api/professors/:id/classes/:classId', (req, res) => {
+  const id = Number(req.params.id);
+  const classId = Number(req.params.classId);
+  const db = router.db;
+  const profRef = db.get('professors').find({ id });
+  const prof = profRef.value();
+  if (!prof) return res.status(404).json({ message: 'Professor not found' });
+
+  const existing = prof.classes || [];
+  const found = existing.find((c) => c.id === classId);
+  if (!found) return res.status(404).json({ message: 'Class not found' });
+
+  // Remove the class by id
+  profRef.get('classes').remove({ id: classId }).write();
+
+  res.json({ success: true, id: classId });
 });
 
 // Mount the json-server router under /api for other endpoints

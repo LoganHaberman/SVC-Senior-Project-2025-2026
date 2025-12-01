@@ -1,5 +1,6 @@
 import React, { useEffect, useState, FormEvent } from 'react'
 
+// The classes are all typed accordingly
 type Class = {
     id: number
     title: string
@@ -7,26 +8,34 @@ type Class = {
     semester?: string
 }
 
+/**
+ * By: Grant Harsch
+ * Date: 11/20/2025 -> 11/30/2025
+ * Very barebones version of the professor dashboard page.
+ */
 function ProfPg() {
     const API_BASE = 'http://localhost:3001/api'
     
     // For now use the sample professor id from the mock data base
     const profId = 3
 
+    // Variables get typed here
     const [profName, setProfName] = useState<string>('')
     const [classes, setClasses] = useState<Class[]>([])
-    const [title, setTitle] = useState('')
-    const [code, setCode] = useState('')
-    const [semester, setSemester] = useState('')
+    const [title, setClassTitle] = useState('')
+    const [code, setClassCode] = useState('')
+    const [semester, setClassSemester] = useState('')
+    const [selectedClass, setSelectedClass] = useState<Class | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
-    const [selectedClass, setSelectedClass] = useState<Class | null>(null)
 
+    // Tries getting data from mock server. 
+    // If data is not retrieved show error message
     useEffect(() => {
         async function load() {
             setLoading(true)
             try {
-                const res = await fetch(`${API_BASE}/professors/${profId}`)
+                const res = await fetch(`${API_BASE}/professors/${profId}`) // Just using 3 for the id for this test
                 if (!res.ok) throw new Error('Failed to load professor')
                 const data = await res.json()
                 setProfName(data.name || '')
@@ -40,7 +49,9 @@ function ProfPg() {
         load()
     }, [])
 
-    const handleAdd = async (e: FormEvent) => {
+    // This code runs when the user clicks the add button
+    // Then the newly made class gets added to the class list on the mock database
+    const handleAddButton = async (e: FormEvent) => {
         e.preventDefault()
         setError(null)
         const payload = { title: title.trim(), code: code.trim(), semester: semester.trim() }
@@ -58,14 +69,35 @@ function ProfPg() {
             if (!res.ok) throw new Error('Failed to add class')
             const newClass = await res.json()
             setClasses((c) => [...c, newClass])
-            setTitle('')
-            setCode('')
-            setSemester('')
+            setClassTitle('')
+            setClassCode('')
+            setClassSemester('')
         } catch (err: any) {
             setError(err.message || 'Error adding class')
         }
     }
 
+    // This code runs the delete button when clicked
+    // Simply routes to the API endpoint and deletes whatever is there
+    const handleDeleteButton = async (classId: number) => {
+        setError(null)
+        
+        try {
+            const res = await fetch(`${API_BASE}/professors/${profId}/classes/${classId}`, {
+                method: 'DELETE',
+            })
+
+            if (!res.ok) {
+                console.error("DELETE failed:", res.status, await res.text())
+                throw new Error('Failed to delete class')
+            }
+            setClasses((c) => c.filter((Class) => Class.id !== classId))
+        } catch (err: any) {
+            setError(err.message || 'Error deleting class')
+        }
+    }
+
+    // What is being seen by the user
     return (
         <div>
             <h1>CLP Dashboard</h1>
@@ -91,20 +123,20 @@ function ProfPg() {
                             )}
                         </div>
 
-                        <form onSubmit={handleAdd} style={{ marginTop: 12 }}>
+                        <form onSubmit={handleAddButton} style={{ marginTop: 12 }}>
                             <div>
                                 <label>
-                                    Title: <input value={title} onChange={(e) => setTitle(e.target.value)} />
+                                    Title: <input value={title} onChange={(e) => setClassTitle(e.target.value)} />
                                 </label>
                             </div>
                             <div>
                                 <label>
-                                    Code: <input value={code} onChange={(e) => setCode(e.target.value)} />
+                                    Code: <input value={code} onChange={(e) => setClassCode(e.target.value)} />
                                 </label>
                             </div>
                             <div>
                                 <label>
-                                    Semester: <input value={semester} onChange={(e) => setSemester(e.target.value)} placeholder="e.g. Fall 2025" />
+                                    Semester: <input value={semester} onChange={(e) => setClassSemester(e.target.value)} placeholder="e.g. Fall 2025" />
                                 </label>
                             </div>
                             <div style={{ marginTop: 8 }}>
@@ -114,7 +146,6 @@ function ProfPg() {
 
                         {error && <p style={{ color: 'red' }}>{error}</p>}
                     
-                        {/* Side panel for selected class */}
                         <aside aria-live="polite" style={{ width: 360, borderLeft: '1px solid #ddd', paddingLeft: 16 }}>
                             {selectedClass ? (
                                 <div>
@@ -132,6 +163,7 @@ function ProfPg() {
                                             <li>Data B: —</li>
                                         </ul>
                                     </div>
+                                    <button onClick={() => handleDeleteButton(selectedClass.id)} style={{ marginTop: 12, color: 'white', backgroundColor: 'red', border: 'none', padding: '8px 12px', cursor: 'pointer' }}>Delete Class</button>
                                 </div>
                             ) : (
                                 <div>
@@ -147,5 +179,4 @@ function ProfPg() {
         </div>
     )
 }
-
 export default ProfPg
