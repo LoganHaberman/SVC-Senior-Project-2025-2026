@@ -1,22 +1,49 @@
 {
-    "users": [
+  "users": [
+    {
+      "id": 1,
+      "username": "admin",
+      "password": "password",
+      "role": "admin"
+    },
+    {
+      "id": 2,
+      "username": "student",
+      "password": "password",
+      "role": "student"
+    },
+    {
+      "id": 3,
+      "username": "professor",
+      "password": "password",
+      "role": "professor"
+    }
+  ],
+  "professors": [
+    {
+      "id": 3,
+      "name": "Dr. Example",
+      "userId": 3,
+      "classes": [
         {
-            "id": 1,
-            "username": "admin",
-            "password": "password",
-            "role": "admin"
+          "id": 1,
+          "title": "Chemistry I",
+          "code": "CHEM101",
+          "semester": "Fall 2025"
         },
         {
-            "id": 2,
-            "username": "student",
-            "password": "password",
-            "role": "student"
+          "id": 2,
+          "title": "Chemistry II",
+          "code": "CHEM201",
+          "semester": "Fall 2025"
         },
         {
-            "id": 3,
-            "username": "professor",
-            "password": "password",
-            "role": "professor"
+          "title": "Chem3",
+          "code": "CHEM543",
+          "semester": "Fall 2025",
+          "id": 3
         }
-    ]
+      ]
+    }
+  ]
 }

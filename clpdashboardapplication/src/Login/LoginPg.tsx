@@ -62,7 +62,7 @@ const LoginPg: React.FC = () => {
             <div style={{ marginTop: 16, fontSize: 12, color: '#888' }}>
                 <div>Try these credentials:</div>
                 <div>Student: student / password</div>
-                <div>Professor: prof / password</div>
+                <div>Professor: professor / password</div>
                 <div>Admin: admin / password</div>
             </div>
         </div>
