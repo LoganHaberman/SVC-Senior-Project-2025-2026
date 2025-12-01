@@ -1,4 +1,4 @@
-// json-server-custom.js
+// server.js
 const jsonServer = require('json-server');
 const path = require('path');
 
