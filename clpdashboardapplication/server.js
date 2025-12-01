@@ -23,6 +23,36 @@ server.post('/api/login', (req, res) => {
   }
 });
 
+// Get professor by id (includes classes) - router already supports /api/professors/:id
+// Additional helper route: get classes for a professor
+server.get('/api/professors/:id/classes', (req, res) => {
+  const id = Number(req.params.id);
+  const db = router.db;
+  const prof = db.get('professors').find({ id }).value();
+  if (!prof) return res.status(404).json({ message: 'Professor not found' });
+  res.json(prof.classes || []);
+});
+
+// Add a class to a professor's classes list
+server.post('/api/professors/:id/classes', (req, res) => {
+  const id = Number(req.params.id);
+  const db = router.db;
+  const profRef = db.get('professors').find({ id });
+  const prof = profRef.value();
+  if (!prof) return res.status(404).json({ message: 'Professor not found' });
+
+  const newClass = req.body || {};
+  // Assign a new id for the class
+  const existing = prof.classes || [];
+  const maxId = existing.reduce((m, c) => (c.id && c.id > m ? c.id : m), 0);
+  newClass.id = maxId + 1;
+
+  // Ensure classes array exists, push and write
+  profRef.get('classes').push(newClass).write();
+
+  res.status(201).json(newClass);
+});
+
 // Mount the json-server router under /api for other endpoints
 server.use('/api', router);
 

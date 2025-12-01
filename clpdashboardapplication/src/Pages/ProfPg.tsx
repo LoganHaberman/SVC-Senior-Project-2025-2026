@@ -1,10 +1,149 @@
-import React from 'react'
+import React, { useEffect, useState, FormEvent } from 'react'
+
+type Class = {
+    id: number
+    title: string
+    code?: string
+    semester?: string
+}
 
 function ProfPg() {
+    const API_BASE = 'http://localhost:3001/api'
+    
+    // For now use the sample professor id from the mock data base
+    const profId = 3
+
+    const [profName, setProfName] = useState<string>('')
+    const [classes, setClasses] = useState<Class[]>([])
+    const [title, setTitle] = useState('')
+    const [code, setCode] = useState('')
+    const [semester, setSemester] = useState('')
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
+    const [selectedClass, setSelectedClass] = useState<Class | null>(null)
+
+    useEffect(() => {
+        async function load() {
+            setLoading(true)
+            try {
+                const res = await fetch(`${API_BASE}/professors/${profId}`)
+                if (!res.ok) throw new Error('Failed to load professor')
+                const data = await res.json()
+                setProfName(data.name || '')
+                setClasses(data.classes || [])
+            } catch (err: any) {
+                setError(err.message || 'Error')
+            } finally {
+                setLoading(false)
+            }
+        }
+        load()
+    }, [])
+
+    const handleAdd = async (e: FormEvent) => {
+        e.preventDefault()
+        setError(null)
+        const payload = { title: title.trim(), code: code.trim(), semester: semester.trim() }
+        if (!payload.title) {
+            setError('Class title is required')
+            return
+        }
+
+        try {
+            const res = await fetch(`${API_BASE}/professors/${profId}/classes`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            })
+            if (!res.ok) throw new Error('Failed to add class')
+            const newClass = await res.json()
+            setClasses((c) => [...c, newClass])
+            setTitle('')
+            setCode('')
+            setSemester('')
+        } catch (err: any) {
+            setError(err.message || 'Error adding class')
+        }
+    }
+
     return (
         <div>
-            <h1>Professor CLP Dashboard</h1>
-            <p>Barebones professor clp dashboard. Not worried about looks right now. Just want some features present at least.</p>
+            <h1>CLP Dashboard</h1>
+            {loading ? (
+                <p>Loading...</p>
+            ) : (
+                <>
+                    <h2>{profName || 'Professor'}</h2>
+
+                    <section style={{ display: 'flex', gap: 24 }}>
+                        <h3>Classes</h3>
+                        <div style={{ flex: 1 }}>
+                            {classes.length === 0 ? (
+                                <p>No classes yet.</p>
+                            ) : (
+                                <ul style={{ listStyle: 'none', padding: 0 }}>
+                                    {classes.map((c) => (
+                                        <li key={c.id} style={{ padding: '6px 8px', cursor: 'pointer', borderBottom: '1px solid #eee' }} onClick={() => setSelectedClass(c)} tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedClass(c) }}>
+                                            <strong>{c.title}</strong> {c.code ? `(${c.code})` : ''} {c.semester ? `— ${c.semester}` : ''}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+
+                        <form onSubmit={handleAdd} style={{ marginTop: 12 }}>
+                            <div>
+                                <label>
+                                    Title: <input value={title} onChange={(e) => setTitle(e.target.value)} />
+                                </label>
+                            </div>
+                            <div>
+                                <label>
+                                    Code: <input value={code} onChange={(e) => setCode(e.target.value)} />
+                                </label>
+                            </div>
+                            <div>
+                                <label>
+                                    Semester: <input value={semester} onChange={(e) => setSemester(e.target.value)} placeholder="e.g. Fall 2025" />
+                                </label>
+                            </div>
+                            <div style={{ marginTop: 8 }}>
+                                <button type="submit">Add class</button>
+                            </div>
+                        </form>
+
+                        {error && <p style={{ color: 'red' }}>{error}</p>}
+                    
+                        {/* Side panel for selected class */}
+                        <aside aria-live="polite" style={{ width: 360, borderLeft: '1px solid #ddd', paddingLeft: 16 }}>
+                            {selectedClass ? (
+                                <div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <h4 style={{ margin: 0 }}>{selectedClass.title}</h4>
+                                        <button onClick={() => setSelectedClass(null)} aria-label="Close panel">Close</button>
+                                    </div>
+                                    <p>{selectedClass.code ? `Code: ${selectedClass.code}` : ''}</p>
+                                    <p>{selectedClass.semester ? `Semester: ${selectedClass.semester}` : ''}</p>
+                                    <div style={{ marginTop: 12 }}>
+                                        <h5>Class Data (placeholder)</h5>
+                                        <p>This panel is a placeholder for class-specific data like attendance, and other such things.</p>
+                                        <ul>
+                                            <li>Data A: —</li>
+                                            <li>Data B: —</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div>
+                                    <h4 style={{ marginTop: 0 }}>Select a class</h4>
+                                    <p>Click a class to view placeholder data here.</p>
+                                </div>
+                            )}
+                        </aside>
+
+                    </section>
+                </>
+            )}
         </div>
     )
 }
