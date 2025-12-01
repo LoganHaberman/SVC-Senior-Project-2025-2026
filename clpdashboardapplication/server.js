@@ -1,4 +1,8 @@
-// server.js
+// server.js, a bunch of APIs that each do something different
+// By: Grant Harsch
+// Date: 11/20/2025 -> 12/01/2025
+
+// Bunch of setup for json server that gets data from db.json from the router
 const jsonServer = require('json-server');
 const path = require('path');
 
@@ -10,6 +14,7 @@ server.use(middlewares);
 server.use(jsonServer.bodyParser);
 
 // Login endpoint
+// user and pass expected and success role and token are returned
 server.post('/api/login', (req, res) => {
   const { username, password } = req.body;
   const db = router.db; // lowdb instance
@@ -23,8 +28,8 @@ server.post('/api/login', (req, res) => {
   }
 });
 
-// Get professor by id (includes classes) - router already supports /api/professors/:id
-// Additional helper route: get classes for a professor
+// Get professor by id (includes classes)
+// When a professor's page is loaded this API is used to get classes pertaining to that prof
 server.get('/api/professors/:id/classes', (req, res) => {
   const id = Number(req.params.id);
   const db = router.db;
@@ -53,7 +58,7 @@ server.post('/api/professors/:id/classes', (req, res) => {
   res.status(201).json(newClass);
 });
 
-// Delete a class from a professor's classes list
+// Delete a professor's class from a professor's classes list
 server.delete('/api/professors/:id/classes/:classId', (req, res) => {
   const id = Number(req.params.id);
   const classId = Number(req.params.classId);
@@ -75,6 +80,7 @@ server.delete('/api/professors/:id/classes/:classId', (req, res) => {
 // Mount the json-server router under /api for other endpoints
 server.use('/api', router);
 
+// Using port 3001 to run the server
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`JSON Server with custom routes running on http://localhost:${PORT}`);
