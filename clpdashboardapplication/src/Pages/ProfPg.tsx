@@ -1,12 +1,12 @@
 import React, { useEffect, useState, FormEvent } from 'react'
 
+// The classes are all typed accordingly
 type Class = {
     id: number
     title: string
     code?: string
     semester?: string
 }
-
 
 /**
  * By: Grant Harsch
@@ -19,6 +19,7 @@ function ProfPg() {
     // For now use the sample professor id from the mock data base
     const profId = 3
 
+    // Variables get typed here
     const [profName, setProfName] = useState<string>('')
     const [classes, setClasses] = useState<Class[]>([])
     const [title, setClassTitle] = useState('')
@@ -28,11 +29,13 @@ function ProfPg() {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
 
+    // Tries getting data from mock server. 
+    // If data is not retrieved show error message
     useEffect(() => {
         async function load() {
             setLoading(true)
             try {
-                const res = await fetch(`${API_BASE}/professors/${profId}`)
+                const res = await fetch(`${API_BASE}/professors/${profId}`) // Just using 3 for the id for this test
                 if (!res.ok) throw new Error('Failed to load professor')
                 const data = await res.json()
                 setProfName(data.name || '')
@@ -46,6 +49,8 @@ function ProfPg() {
         load()
     }, [])
 
+    // This code runs when the user clicks the add button
+    // Then the newly made class gets added to the class list on the mock database
     const handleAddButton = async (e: FormEvent) => {
         e.preventDefault()
         setError(null)
@@ -121,7 +126,6 @@ function ProfPg() {
 
                         {error && <p style={{ color: 'red' }}>{error}</p>}
                     
-                        {/* Side panel for selected class */}
                         <aside aria-live="polite" style={{ width: 360, borderLeft: '1px solid #ddd', paddingLeft: 16 }}>
                             {selectedClass ? (
                                 <div>
