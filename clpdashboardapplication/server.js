@@ -9,14 +9,14 @@ const middlewares = jsonServer.defaults();
 server.use(middlewares);
 server.use(jsonServer.bodyParser);
 
-// Custom login endpoint
+// Login endpoint
 server.post('/api/login', (req, res) => {
   const { username, password } = req.body;
   const db = router.db; // lowdb instance
   const user = db.get('users').find({ username, password }).value();
 
   if (user) {
-    // Return minimal info: role and a fake token
+    // Role is returned as well as a token that may be used for further authorization or something interesting later
     res.json({ success: true, role: user.role, token: 'fake-jwt-token' });
   } else {
     res.status(401).json({ success: false, message: 'Invalid credentials' });

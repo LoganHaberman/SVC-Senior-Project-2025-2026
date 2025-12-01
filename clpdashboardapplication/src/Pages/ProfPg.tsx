@@ -158,5 +158,4 @@ function ProfPg() {
         </div>
     )
 }
-
 export default ProfPg
