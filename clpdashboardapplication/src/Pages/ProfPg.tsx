@@ -7,6 +7,12 @@ type Class = {
     semester?: string
 }
 
+
+/**
+ * By: Grant Harsch
+ * Date: 11/20/2025 -> 11/30/2025
+ * Very barebones version of the professor dashboard page.
+ */
 function ProfPg() {
     const API_BASE = 'http://localhost:3001/api'
     
@@ -15,12 +21,12 @@ function ProfPg() {
 
     const [profName, setProfName] = useState<string>('')
     const [classes, setClasses] = useState<Class[]>([])
-    const [title, setTitle] = useState('')
-    const [code, setCode] = useState('')
-    const [semester, setSemester] = useState('')
+    const [title, setClassTitle] = useState('')
+    const [code, setClassCode] = useState('')
+    const [semester, setClassSemester] = useState('')
+    const [selectedClass, setSelectedClass] = useState<Class | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
-    const [selectedClass, setSelectedClass] = useState<Class | null>(null)
 
     useEffect(() => {
         async function load() {
@@ -40,7 +46,7 @@ function ProfPg() {
         load()
     }, [])
 
-    const handleAdd = async (e: FormEvent) => {
+    const handleAddButton = async (e: FormEvent) => {
         e.preventDefault()
         setError(null)
         const payload = { title: title.trim(), code: code.trim(), semester: semester.trim() }
@@ -58,14 +64,15 @@ function ProfPg() {
             if (!res.ok) throw new Error('Failed to add class')
             const newClass = await res.json()
             setClasses((c) => [...c, newClass])
-            setTitle('')
-            setCode('')
-            setSemester('')
+            setClassTitle('')
+            setClassCode('')
+            setClassSemester('')
         } catch (err: any) {
             setError(err.message || 'Error adding class')
         }
     }
 
+    // What is being seen by the user
     return (
         <div>
             <h1>CLP Dashboard</h1>
@@ -91,20 +98,20 @@ function ProfPg() {
                             )}
                         </div>
 
-                        <form onSubmit={handleAdd} style={{ marginTop: 12 }}>
+                        <form onSubmit={handleAddButton} style={{ marginTop: 12 }}>
                             <div>
                                 <label>
-                                    Title: <input value={title} onChange={(e) => setTitle(e.target.value)} />
+                                    Title: <input value={title} onChange={(e) => setClassTitle(e.target.value)} />
                                 </label>
                             </div>
                             <div>
                                 <label>
-                                    Code: <input value={code} onChange={(e) => setCode(e.target.value)} />
+                                    Code: <input value={code} onChange={(e) => setClassCode(e.target.value)} />
                                 </label>
                             </div>
                             <div>
                                 <label>
-                                    Semester: <input value={semester} onChange={(e) => setSemester(e.target.value)} placeholder="e.g. Fall 2025" />
+                                    Semester: <input value={semester} onChange={(e) => setClassSemester(e.target.value)} placeholder="e.g. Fall 2025" />
                                 </label>
                             </div>
                             <div style={{ marginTop: 8 }}>

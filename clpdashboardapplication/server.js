@@ -53,6 +53,25 @@ server.post('/api/professors/:id/classes', (req, res) => {
   res.status(201).json(newClass);
 });
 
+// Delete a class from a professor's classes list
+server.delete('/api/professors/:id/classes/:classId', (req, res) => {
+  const id = Number(req.params.id);
+  const classId = Number(req.params.classId);
+  const db = router.db;
+  const profRef = db.get('professors').find({ id });
+  const prof = profRef.value();
+  if (!prof) return res.status(404).json({ message: 'Professor not found' });
+
+  const existing = prof.classes || [];
+  const found = existing.find((c) => c.id === classId);
+  if (!found) return res.status(404).json({ message: 'Class not found' });
+
+  // Remove the class by id
+  profRef.get('classes').remove({ id: classId }).write();
+
+  res.json({ success: true, id: classId });
+});
+
 // Mount the json-server router under /api for other endpoints
 server.use('/api', router);
 

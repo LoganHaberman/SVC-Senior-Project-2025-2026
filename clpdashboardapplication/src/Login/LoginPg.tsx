@@ -2,16 +2,18 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const LoginPg: React.FC = () => {
+
+  // Setting basic login variables with types
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const navigate = useNavigate();
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleLogin = async (e: React.FormEvent) => {
   e.preventDefault();
   setError('');
   try {
-    const res = await fetch('http://localhost:3001/api/login', {
+    const res = await fetch(`{API_BASE}/api/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: username.trim(), password: password.trim() }),
@@ -35,7 +37,7 @@ const LoginPg: React.FC = () => {
     return (
         <div style={{ maxWidth: 350, margin: '60px auto', padding: 24, border: '1px solid #ccc', borderRadius: 8 }}>
             <h2>Login</h2>
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleLogin}>
                 <div style={{ marginBottom: 12 }}>
                     <input
                         type="text"
