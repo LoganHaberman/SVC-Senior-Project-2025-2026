@@ -77,6 +77,26 @@ function ProfPg() {
         }
     }
 
+    // This code runs the delete button when clicked
+    // Simply routes to the API endpoint and deletes whatever is there
+    const handleDeleteButton = async (classId: number) => {
+        setError(null)
+        
+        try {
+            const res = await fetch(`${API_BASE}/professors/${profId}/classes/${classId}`, {
+                method: 'DELETE',
+            })
+
+            if (!res.ok) {
+                console.error("DELETE failed:", res.status, await res.text())
+                throw new Error('Failed to delete class')
+            }
+            setClasses((c) => c.filter((Class) => Class.id !== classId))
+        } catch (err: any) {
+            setError(err.message || 'Error deleting class')
+        }
+    }
+
     // What is being seen by the user
     return (
         <div>
@@ -143,6 +163,7 @@ function ProfPg() {
                                             <li>Data B: —</li>
                                         </ul>
                                     </div>
+                                    <button onClick={() => handleDeleteButton(selectedClass.id)} style={{ marginTop: 12, color: 'white', backgroundColor: 'red', border: 'none', padding: '8px 12px', cursor: 'pointer' }}>Delete Class</button>
                                 </div>
                             ) : (
                                 <div>
