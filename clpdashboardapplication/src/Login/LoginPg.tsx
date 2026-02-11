@@ -34,6 +34,8 @@ const LoginPg: React.FC = () => {
 
     // Depending on what the server tells us about the role of the user, navigate to the correct dashboard
     const data = await res.json();
+    // Store userId in localStorage for use in other pages
+    localStorage.setItem('userId', data.userId);
     if (data.role === 'student') navigate('/studentdash');
     else if (data.role === 'professor') navigate('/professordash');
     else if (data.role === 'admin') navigate('/admindash');

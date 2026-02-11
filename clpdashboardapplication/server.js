@@ -21,8 +21,8 @@ server.post('/api/login', (req, res) => {
   const user = db.get('users').find({ username, password }).value();
 
   if (user) {
-    // Role is returned as well as a token that may be used for further authorization or something interesting later
-    res.json({ success: true, role: user.role, token: 'fake-jwt-token' });
+    // Role and user id are returned as well as a token that may be used for further authorization or something interesting later
+    res.json({ success: true, role: user.role, userId: user.id, token: 'fake-jwt-token' });
   } else {
     res.status(401).json({ success: false, message: 'Invalid credentials' });
   }
