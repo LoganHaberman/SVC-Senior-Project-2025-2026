@@ -72,6 +72,62 @@ server.delete('/api/professors/:id/classes/:classId', (req, res) => {
   res.json({ success: true, id: classId });
 });
 
+// Add a student to a CLP session's attendance
+server.post('/api/professors/:profId/classes/:classId/sessions/:sessionNumber/attend', (req, res) => {
+  const profId = Number(req.params.profId);
+  const classId = Number(req.params.classId);
+  const sessionNumber = Number(req.params.sessionNumber);
+  const { studentName } = req.body;
+  const db = router.db;
+  
+  const profRef = db.get('professors').find({ id: profId });
+  const prof = profRef.value();
+  if (!prof) return res.status(404).json({ message: 'Professor not found' });
+  
+  const classRef = profRef.get('classes').find({ id: classId });
+  const cls = classRef.value();
+  if (!cls) return res.status(404).json({ message: 'Class not found' });
+  
+  const sessionRef = classRef.get('sessions').find({ sessionNumber });
+  const session = sessionRef.value();
+  if (!session) return res.status(404).json({ message: 'Session not found' });
+  
+  if (!studentName) return res.status(400).json({ message: 'Student name required' });
+
+  // Prevent duplicate attendance
+  if (!session.attendees.includes(studentName)) {
+    sessionRef.get('attendees').push(studentName).write();
+  }
+  
+  res.json({ success: true, studentName });
+});
+
+// Remove a student from a CLP session's attendance
+server.delete('/api/professors/:profId/classes/:classId/sessions/:sessionNumber/attend/:studentName', (req, res) => {
+  const profId = Number(req.params.profId);
+  const classId = Number(req.params.classId);
+  const sessionNumber = Number(req.params.sessionNumber);
+  const studentName = decodeURIComponent(req.params.studentName);
+  const db = router.db;
+  
+  const profRef = db.get('professors').find({ id: profId });
+  const prof = profRef.value();
+  if (!prof) return res.status(404).json({ message: 'Professor not found' });
+  
+  const classRef = profRef.get('classes').find({ id: classId });
+  const cls = classRef.value();
+  if (!cls) return res.status(404).json({ message: 'Class not found' });
+  
+  const sessionRef = classRef.get('sessions').find({ sessionNumber });
+  const session = sessionRef.value();
+  if (!session) return res.status(404).json({ message: 'Session not found' });
+
+  // Remove the student from attendees
+  sessionRef.get('attendees').remove(studentName).write();
+  
+  res.json({ success: true, studentName });
+});
+
 // Mount the json-server router under /api for other endpoints
 server.use('/api', router);
 
