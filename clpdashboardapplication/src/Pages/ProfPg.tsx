@@ -16,8 +16,8 @@ type Class = {
 function ProfPg() {
     const API_BASE = 'http://localhost:3001/api'
     
-    // For now use the sample professor id from the mock data base
-    const profId = 3
+    // Get the professor id from localStorage (set during login)
+    const profId = parseInt(localStorage.getItem('userId') || '3', 10)
 
     // Variables get typed here
     const [profName, setProfName] = useState<string>('')

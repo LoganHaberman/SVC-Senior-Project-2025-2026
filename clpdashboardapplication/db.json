@@ -17,6 +17,12 @@
       "username": "professor",
       "password": "password",
       "role": "professor"
+    },
+    {
+      "id": 4,
+      "username": "professor2",
+      "password": "password",
+      "role": "professor"
     }
   ],
   "professors": [
@@ -29,12 +35,42 @@
           "id": 1,
           "title": "Chemistry I",
           "code": "CHEM101",
+          "section": 1,
           "semester": "Fall 2025"
         },
         {
           "id": 2,
           "title": "Chemistry II",
           "code": "CHEM201",
+          "section": 2,
+          "semester": "Fall 2025"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Dr. Smith",
+      "userId": 4,
+      "classes": [
+        {
+          "id": 3,
+          "title": "Biology I",
+          "code": "BIO101",
+          "section": 1,
+          "semester": "Fall 2025"
+        },
+        {
+          "id": 4,
+          "title": "Biology II",
+          "code": "BIO102",
+          "section": 2,
+          "semester": "Fall 2025"
+        },
+        {
+          "id": 5,
+          "title": "Genetics",
+          "code": "BIO301",
+          "section": 1,
           "semester": "Fall 2025"
         }
       ]
