@@ -177,7 +177,22 @@ function AdminPg() {
                                             backgroundColor: '#e8f4f8',
                                             borderRadius: 4
                                         }}>
-                                            <h4>Editing: Session {selectedSession.sessionNumber} - {selectedSession.date}</h4>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                                                <h4 style={{ margin: 0 }}>Editing: Session {selectedSession.sessionNumber} - {selectedSession.date}</h4>
+                                                <button 
+                                                    onClick={() => setSelectedSessionNumber(null)}
+                                                    style={{
+                                                        padding: '8px 16px',
+                                                        backgroundColor: '#6c757d',
+                                                        color: 'white',
+                                                        border: 'none',
+                                                        borderRadius: 4,
+                                                        cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    Done
+                                                </button>
+                                            </div>
                                             <p><strong>Current Attendees ({selectedSession.attendees.length}):</strong></p>
                                             {selectedSession.attendees.length > 0 ? (
                                                 <ul style={{ listStyle: 'none', padding: 0 }}>
