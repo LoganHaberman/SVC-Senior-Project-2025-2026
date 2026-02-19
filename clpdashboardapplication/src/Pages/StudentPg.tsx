@@ -117,13 +117,6 @@ function StudentPg() {
         fetchLatestSession();
     }, [selectedClassId, selectedSessionNumber, classes]);
 
-    /* Clear card data and student name when session changes
-    useEffect(() => {
-        setCardData('');
-        setStudentName('');
-        setStatus('Ready');
-    }, [selectedSessionNumber]);
-*/
     // Handle card input from HID scanner
     const handleCardInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const data = e.target.value;
@@ -138,23 +131,23 @@ function StudentPg() {
                 await saveAttendance(student.name);
             } else {
                 setStatus('Student ID not found in database');
-            }
+            }   
             // Clear after a short delay to show the cleaned ID
             setTimeout(() => setCardData(''), 1000);
         } else {
             setCardData(''); // Clear immediately if invalid
         }
+        return;
     };
 
     // Parse ID from card data (either Track 1 or direct ID)
     const parseStudentId = (data: string): string | null => {
         // Remove any non-digits
-        if (data) {
-            data = data.replace(/\D/g, '');
-            // Check if it matches the format: 000xxxxxx (9 digits starting with 000)
-            if (/^000\d{6}$/.test(data)) {
-                return data;
-            }
+        data = data.replace(/\D/g, '');
+        data = data.substring(0, 9); // Ensure max length of 9 digits
+        // Check if it matches the format: 000xxxxxx (9 digits starting with 000)
+        if (/^000\d{6}$/.test(data)) {
+            return data;
         }
         return null;
     };
@@ -330,8 +323,11 @@ function StudentPg() {
                         <p>Status: {status}</p>
                         <input
                             type="text"
-                            value={cardData}
-                            onChange={handleCardInput}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                    handleCardInput(e as unknown as React.ChangeEvent<HTMLInputElement>);
+                                }
+                            }}
                             placeholder="Swipe card here"
                             autoFocus
                             style={{ width: '300px', padding: '10px' }}

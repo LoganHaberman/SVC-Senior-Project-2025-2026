@@ -45,7 +45,8 @@
                 "John Doe",
                 "Jane Smith",
                 "Bob Johnson",
-                "Grant Harsch"
+                "Grant Harsch",
+                "Joe Schmoe"
               ]
             },
             {
@@ -64,7 +65,9 @@
             {
               "sessionNumber": 4,
               "date": "2025-10-06",
-              "attendees": []
+              "attendees": [
+                "Grant Harsch"
+              ]
             },
             {
               "sessionNumber": 5,
@@ -92,13 +95,16 @@
             {
               "sessionNumber": 2,
               "date": "2025-09-23",
-              "attendees": []
+              "attendees": [
+                "Joe Schmoe"
+              ]
             },
             {
               "sessionNumber": 3,
               "date": "2025-09-30",
               "attendees": [
-                "Grant Harsch"
+                "Grant Harsch",
+                "Joe Schmoe"
               ]
             },
             {
@@ -138,7 +144,10 @@
             {
               "sessionNumber": 2,
               "date": "2025-09-24",
-              "attendees": []
+              "attendees": [
+                "Joe Schmoe",
+                "Grant Harsch"
+              ]
             },
             {
               "sessionNumber": 3,
