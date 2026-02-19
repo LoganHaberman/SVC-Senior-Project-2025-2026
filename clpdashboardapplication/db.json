@@ -41,12 +41,20 @@
             {
               "sessionNumber": 1,
               "date": "2025-09-15",
-              "attendees": ["John Doe", "Jane Smith", "Bob Johnson"]
+              "attendees": [
+                "John Doe",
+                "Jane Smith",
+                "Bob Johnson",
+                "Grant Harsch"
+              ]
             },
             {
               "sessionNumber": 2,
               "date": "2025-09-22",
-              "attendees": ["John Doe", "Jane Smith"]
+              "attendees": [
+                "John Doe",
+                "Jane Smith"
+              ]
             },
             {
               "sessionNumber": 3,
@@ -75,7 +83,11 @@
             {
               "sessionNumber": 1,
               "date": "2025-09-16",
-              "attendees": ["Alice Cooper", "Charlie Brown", "Diana Prince"]
+              "attendees": [
+                "Alice Cooper",
+                "Charlie Brown",
+                "Diana Prince"
+              ]
             },
             {
               "sessionNumber": 2,
@@ -116,7 +128,10 @@
             {
               "sessionNumber": 1,
               "date": "2025-09-17",
-              "attendees": ["Eve Wilson", "Frank Miller"]
+              "attendees": [
+                "Eve Wilson",
+                "Frank Miller"
+              ]
             },
             {
               "sessionNumber": 2,
