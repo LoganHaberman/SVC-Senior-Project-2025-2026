@@ -97,7 +97,9 @@
             {
               "sessionNumber": 3,
               "date": "2025-09-30",
-              "attendees": []
+              "attendees": [
+                "Grant Harsch"
+              ]
             },
             {
               "sessionNumber": 4,
