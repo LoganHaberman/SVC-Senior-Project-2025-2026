@@ -72,6 +72,36 @@ server.delete('/api/professors/:id/classes/:classId', (req, res) => {
   res.json({ success: true, id: classId });
 });
 
+// Add a session to a class
+server.post('/api/professors/:profId/classes/:classId/sessions', (req, res) => {
+  const profId = Number(req.params.profId);
+  const classId = Number(req.params.classId);
+  const { sessionNumber, date, attendees } = req.body;
+  const db = router.db;
+
+  const profRef = db.get('professors').find({ id: profId });
+  const prof = profRef.value();
+  if (!prof) return res.status(404).json({ message: 'Professor not found' });
+
+  const classRef = profRef.get('classes').find({ id: classId });
+  const cls = classRef.value();
+  if (!cls) return res.status(404).json({ message: 'Class not found' });
+
+  // Ensure sessions array exists
+  if (!cls.sessions) {
+    classRef.set('sessions', []).write();
+  }
+
+  // Check if sessionNumber already exists
+  const existingSession = classRef.get('sessions').find({ sessionNumber }).value();
+  if (existingSession) return res.status(400).json({ message: 'Session number already exists' });
+
+  // Add the session
+  classRef.get('sessions').push({ sessionNumber, date, attendees: attendees || [] }).write();
+
+  res.status(201).json({ sessionNumber, date, attendees: attendees || [] });
+});
+
 // Add a student to a CLP session's attendance
 server.post('/api/professors/:profId/classes/:classId/sessions/:sessionNumber/attend', (req, res) => {
   const profId = Number(req.params.profId);

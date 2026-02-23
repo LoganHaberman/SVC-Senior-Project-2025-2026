@@ -12,6 +12,8 @@ interface Class {
   code: string;
   section: number;
   semester: string;
+  profId: number;
+  uniqueId: string;
   sessions: Session[];
   professorName?: string;
 }
@@ -26,7 +28,7 @@ interface Professor {
 function AdminPg() {
     const API_BASE = 'http://localhost:3001/api';
     const [classes, setClasses] = useState<Class[]>([]);
-    const [selectedClassId, setSelectedClassId] = useState<number | null>(null);
+    const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
     const [selectedSessionNumber, setSelectedSessionNumber] = useState<number | null>(null);
     const [newStudentName, setNewStudentName] = useState<string>('');
     const [loading, setLoading] = useState(true);
@@ -46,7 +48,9 @@ function AdminPg() {
                     prof.classes.forEach(cls => {
                         allClasses.push({
                             ...cls,
-                            professorName: prof.name
+                            professorName: prof.name,
+                            profId: prof.id,
+                            uniqueId: `${prof.id}-${cls.id}`
                         });
                     });
                 });
@@ -60,7 +64,7 @@ function AdminPg() {
         fetchData();
     }, []);
 
-    const selectedClass = classes.find(c => c.id === selectedClassId);
+    const selectedClass = classes.find(c => c.uniqueId === selectedClassId);
     const selectedSession = selectedClass && selectedSessionNumber 
         ? selectedClass.sessions.find(s => s.sessionNumber === selectedSessionNumber)
         : null;
@@ -140,12 +144,12 @@ function AdminPg() {
                             {classes.map(cls => (
                                 <li 
                                     key={cls.id}
-                                    onClick={() => setSelectedClassId(cls.id)}
+                                    onClick={() => setSelectedClassId(cls.uniqueId)}
                                     style={{
                                         padding: 10,
                                         margin: 5,
-                                        backgroundColor: selectedClassId === cls.id ? '#007bff' : '#f0f0f0',
-                                        color: selectedClassId === cls.id ? 'white' : 'black',
+                                        backgroundColor: selectedClassId === cls.uniqueId ? '#007bff' : '#f0f0f0',
+                                        color: selectedClassId === cls.uniqueId ? 'white' : 'black',
                                         cursor: 'pointer',
                                         borderRadius: 4
                                     }}
@@ -266,26 +270,27 @@ function AdminPg() {
 
                                     <h4>Sessions</h4>
                                     <ul style={{ listStyle: 'none', padding: 0 }}>
-                                        {selectedClass.sessions.map(session => (
-                                            <li key={session.sessionNumber} style={{ 
-                                                padding: 10, 
-                                                marginBottom: 10, 
-                                                backgroundColor: selectedSessionNumber === session.sessionNumber ? '#d1ecf1' : '#f5f5f5',
-                                                borderLeft: '4px solid #007bff',
-                                                borderRadius: 4,
-                                                display: 'flex',
-                                                justifyContent: 'space-between',
-                                                alignItems: 'flex-start'
-                                            }}>
-                                                <div style={{ flex: 1 }}>
-                                                    <p><strong>Session {session.sessionNumber}</strong> - Date: {session.date}</p>
-                                                    <p><strong>Attendees ({session.attendees.length}):</strong></p>
-                                                    <ul style={{ marginLeft: 20 }}>
-                                                        {session.attendees.map((name, idx) => (
-                                                            <li key={idx}>{name}</li>
-                                                        ))}
-                                                    </ul>
-                                                </div>
+                                        {selectedClass.sessions && selectedClass.sessions.length > 0 ? (
+                                            selectedClass.sessions.map(session => (
+                                                <li key={session.sessionNumber} style={{ 
+                                                    padding: 10, 
+                                                    marginBottom: 10, 
+                                                    backgroundColor: selectedSessionNumber === session.sessionNumber ? '#d1ecf1' : '#f5f5f5',
+                                                    borderLeft: '4px solid #007bff',
+                                                    borderRadius: 4,
+                                                    display: 'flex',
+                                                    justifyContent: 'space-between',
+                                                    alignItems: 'flex-start'
+                                                }}>
+                                                    <div style={{ flex: 1 }}>
+                                                        <p><strong>Session {session.sessionNumber}</strong> - Date: {session.date}</p>
+                                                        <p><strong>Attendees ({session.attendees.length}):</strong></p>
+                                                        <ul style={{ marginLeft: 20 }}>
+                                                            {session.attendees.map((name, idx) => (
+                                                                <li key={idx}>{name}</li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
                                                 <button
                                                     onClick={() => setSelectedSessionNumber(session.sessionNumber)}
                                                     style={{
@@ -302,7 +307,10 @@ function AdminPg() {
                                                     Edit
                                                 </button>
                                             </li>
-                                        ))}
+                                        ))
+                                        ) : (
+                                            <li>No sessions available</li>
+                                        )}
                                     </ul>
                                 </>
                             ) : (

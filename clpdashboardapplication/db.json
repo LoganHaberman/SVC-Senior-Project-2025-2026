@@ -60,7 +60,9 @@
             {
               "sessionNumber": 3,
               "date": "2025-09-29",
-              "attendees": []
+              "attendees": [
+                "Grant Harsch"
+              ]
             },
             {
               "sessionNumber": 4,
@@ -118,6 +120,23 @@
               "attendees": []
             }
           ]
+        },
+        {
+          "title": "fgsf",
+          "code": "fgsd",
+          "semester": "dfgs",
+          "clpDay": "Monday",
+          "sessions": [
+            {
+              "sessionNumber": 1,
+              "date": "2026-03-02",
+              "attendees": [
+                "Grant Harsch",
+                "Joe Schmoe"
+              ]
+            }
+          ],
+          "id": 3
         }
       ]
     },
@@ -215,7 +234,9 @@
             {
               "sessionNumber": 2,
               "date": "2025-09-26",
-              "attendees": []
+              "attendees": [
+                "Grant Harsch"
+              ]
             },
             {
               "sessionNumber": 3,

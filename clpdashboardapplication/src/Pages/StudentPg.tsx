@@ -14,6 +14,7 @@ interface Class {
   section: number;
   semester: string;
   professorName: string;
+  uniqueId: string;
   sessions: CLPSession[];
 }
 
@@ -29,7 +30,7 @@ function StudentPg() {
     const [cardData, setCardData] = useState<string>('');
     const [status, setStatus] = useState<string>('Ready');
     const [classes, setClasses] = useState<Class[]>([]);
-    const [selectedClassId, setSelectedClassId] = useState<number | null>(null);
+    const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
     const [selectedSessionNumber, setSelectedSessionNumber] = useState<number | null>(null);
     const [loadingClasses, setLoadingClasses] = useState(true);
     const [currentSession, setCurrentSession] = useState<CLPSession | null>(null);
@@ -47,7 +48,8 @@ function StudentPg() {
                     prof.classes.forEach(cls => {
                         allClasses.push({
                             ...cls,
-                            professorName: prof.name
+                            professorName: prof.name,
+                            uniqueId: `${prof.id}-${cls.id}`
                         });
                     });
                 });
@@ -99,7 +101,7 @@ function StudentPg() {
                 return;
             }
             try {
-                const selectedClass = classes.find(c => c.id === selectedClassId);
+                const selectedClass = classes.find(c => c.uniqueId === selectedClassId);
                 if (selectedClass && selectedClass.sessions.length > 0) {
                     // Get the selected session by session number
                     const session = selectedClass.sessions.find(s => s.sessionNumber === selectedSessionNumber);
@@ -118,8 +120,8 @@ function StudentPg() {
     }, [selectedClassId, selectedSessionNumber, classes]);
 
     // Handle card input from HID scanner
-    const handleCardInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const data = e.target.value;
+    const handleCardInput = async () => {
+        const data = cardData;
         console.log('Raw data:', data);
         const parsedId = parseStudentId(data);
         console.log('Parsed ID:', parsedId);
@@ -159,28 +161,15 @@ function StudentPg() {
             return;
         }
         try {
-            const selectedClass = classes.find(c => c.id === selectedClassId);
+            const selectedClass = classes.find(c => c.uniqueId === selectedClassId);
             if (!selectedClass) {
                 setStatus('Class not found');
                 return;
             }
             
-            // Find which professor owns this class
-            const response = await fetch('http://localhost:3001/api/professors');
-            const professors: Professor[] = await response.json();
-            let profId: number | null = null;
-            
-            for (const prof of professors) {
-                if (prof.classes.some(c => c.id === selectedClass.id)) {
-                    profId = prof.id;
-                    break;
-                }
-            }
-            
-            if (!profId) {
-                setStatus('Professor not found for this class');
-                return;
-            }
+            const [profIdStr, classIdStr] = selectedClassId.split('-');
+            const profId = parseInt(profIdStr);
+            const classId = parseInt(classIdStr);
             
             const attendRes = await fetch(
                 `http://localhost:3001/api/professors/${profId}/classes/${selectedClass.id}/sessions/${currentSession.sessionNumber}/attend`,
@@ -201,7 +190,7 @@ function StudentPg() {
         }
     };
 
-    const selectedClass = classes.find(c => c.id === selectedClassId);
+    const selectedClass = classes.find(c => c.uniqueId === selectedClassId);
 
     return (
         <div>
@@ -256,12 +245,12 @@ function StudentPg() {
                                         .map(cls => (
                                         <li key={cls.id} style={{ padding: 0, marginBottom: 6 }}>
                                             <button
-                                                onClick={() => { setSelectedClassId(cls.id); setSelectedSessionNumber(null); }}
+                                                onClick={() => { setSelectedClassId(cls.uniqueId); setSelectedSessionNumber(null); }}
                                                 style={{
                                                     width: '100%',
                                                     padding: 10,
-                                                    backgroundColor: selectedClassId === cls.id ? '#007bff' : '#f9f9f9',
-                                                    color: selectedClassId === cls.id ? 'white' : 'black',
+                                                    backgroundColor: selectedClassId === cls.uniqueId ? '#007bff' : '#f9f9f9',
+                                                    color: selectedClassId === cls.uniqueId ? 'white' : 'black',
                                                     borderRadius: 6,
                                                     border: 'none',
                                                     cursor: 'pointer',
@@ -276,14 +265,14 @@ function StudentPg() {
                                                     outline: 'none',
                                                     WebkitTapHighlightColor: 'transparent'
                                                 }}
-                                                aria-pressed={selectedClassId === cls.id}
+                                                aria-pressed={selectedClassId === cls.uniqueId}
                                             >
                                                 <div style={{ flex: 1 }}>
                                                     <div style={{ fontWeight: 600 }}>{cls.professorName} — {cls.code} (Section {cls.section})</div>
                                                     <div style={{ fontSize: 13, color: '#555' }}>{cls.title} — {cls.semester}</div>
                                                 </div>
-                                                <div style={{ marginLeft: 12, opacity: selectedClassId === cls.id ? 1 : 0.6 }}>
-                                                    {selectedClassId === cls.id ? 'Selected' : 'Choose'}
+                                                <div style={{ marginLeft: 12, opacity: selectedClassId === cls.uniqueId ? 1 : 0.6 }}>
+                                                    {selectedClassId === cls.uniqueId ? 'Selected' : 'Choose'}
                                                 </div>
                                             </button>
                                         </li>
@@ -323,9 +312,11 @@ function StudentPg() {
                         <p>Status: {status}</p>
                         <input
                             type="text"
+                            value={cardData}
+                            onChange={(e) => setCardData(e.target.value)}
                             onKeyDown={(e) => {
                                 if (e.key === "Enter") {
-                                    handleCardInput(e as unknown as React.ChangeEvent<HTMLInputElement>);
+                                    handleCardInput();
                                 }
                             }}
                             placeholder="Swipe card here"
