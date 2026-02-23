@@ -56,9 +56,7 @@
             {
               "sessionNumber": 1,
               "date": "2026-03-02",
-              "attendees": [
-                "Joe Schmoe"
-              ]
+              "attendees": []
             }
           ],
           "id": 2

@@ -23,8 +23,60 @@ server.post('/api/login', (req, res) => {
   }
 });
 
-// Get professor by id (includes classes) - router already supports /api/professors/:id
-// Additional helper route: get classes for a professor
+// Get professor by id (includes classes) - with automatic session generation
+server.get('/api/professors/:id', (req, res) => {
+  const id = Number(req.params.id);
+  const db = router.db;
+  const prof = db.get('professors').find({ id }).value();
+  if (!prof) return res.status(404).json({ message: 'Professor not found' });
+
+  // Generate next CLP sessions if needed
+  const updatedClasses = prof.classes.map(cls => {
+    if (cls.clpDay && cls.sessions && cls.sessions.length > 0) {
+      const latestSession = cls.sessions.reduce((latest, sess) => 
+        new Date(sess.date) > new Date(latest.date) ? sess : latest
+      );
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const latestDate = new Date(latestSession.date);
+      if (latestDate < today) {
+        // Need to generate next session
+        const nextDate = getNextDateForDay(cls.clpDay, latestDate);
+        const newSessionNumber = latestSession.sessionNumber + 1;
+        cls.sessions.push({
+          sessionNumber: newSessionNumber,
+          date: nextDate,
+          attendees: []
+        });
+        // Update the database
+        db.get('professors').find({ id }).get('classes').find({ id: cls.id }).get('sessions').push({
+          sessionNumber: newSessionNumber,
+          date: nextDate,
+          attendees: []
+        }).write();
+      }
+    }
+    return cls;
+  });
+
+  res.json({ ...prof, classes: updatedClasses });
+});
+
+// Helper function to get next date for a given day
+function getNextDateForDay(dayName, fromDate = new Date()) {
+  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const dayIndex = days.indexOf(dayName.toLowerCase());
+  if (dayIndex === -1) return null;
+  
+  const currentDay = fromDate.getDay();
+  let daysToAdd = dayIndex - currentDay;
+  if (daysToAdd <= 0) {
+    daysToAdd += 7;
+  }
+  const nextDate = new Date(fromDate);
+  nextDate.setDate(fromDate.getDate() + daysToAdd);
+  return nextDate.toISOString().split('T')[0]; // YYYY-MM-DD
+}
 server.get('/api/professors/:id/classes', (req, res) => {
   const id = Number(req.params.id);
   const db = router.db;
