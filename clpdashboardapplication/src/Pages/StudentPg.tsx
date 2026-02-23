@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import Papa from 'papaparse'
 
+// This is what will be presented on this page.
+// Each of these items are retrieved from the mock database via API calls in server.js
 interface CLPSession {
   sessionNumber: number;
   date: string;
@@ -24,6 +26,15 @@ interface Professor {
   userId: number;
   classes: Class[];
 }
+
+/**
+ * By Grant Harsch
+ * Desc: Student dashboard page.
+ * This page presents the student with the ability to register a student as being present in a CLP session.
+ * They must pick the class and CLP session they are recording and then scan the attendees card or enter it manually.
+ * Scanning is merrily for ease of use and is not needed. To enter student IDs manually type it in the text box
+ * and press enter. 
+ */
 
 function StudentPg() {
     const [studentName, setStudentName] = useState<string>('');

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, FormEvent } from 'react'
 
-// The classes are all typed accordingly
+// This is what is being created each time a professor makes a new class.
+// This is uploaded to the mock database via API calls in server.js
 type CLPSession = {
     sessionNumber: number;
     date: string;
@@ -18,8 +19,9 @@ type Class = {
 
 /**
  * By: Grant Harsch
- * Date: 11/20/2025 -> 11/30/2025
- * Very barebones version of the professor dashboard page.
+ * Desc: Professor dashboard page.
+ * This displays class data; name, code, semester and CLP session days.
+ * Functions it has are as follows: Ability to add new classes as well as delete classes.
  */
 function ProfPg() {
     const API_BASE = 'http://localhost:3001/api'
@@ -27,7 +29,6 @@ function ProfPg() {
     // Get the professor id from localStorage (set during login)
     const profId = parseInt(localStorage.getItem('userId') || '3', 10)
 
-    // Variables get typed here
     const [profName, setProfName] = useState<string>('')
     const [classes, setClasses] = useState<Class[]>([])
     const [title, setClassTitle] = useState('')

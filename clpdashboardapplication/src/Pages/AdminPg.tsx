@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react'
 
+// Here are the different interfaces that the admin will be presented with.
+// All this will be taken from mock db.
 interface Session {
   sessionNumber: number;
   date: string;
@@ -24,6 +26,14 @@ interface Professor {
   userId: number;
   classes: Class[];
 }
+
+/**
+ * By: Grant Harsch
+ * Desc: Admin dashboard page.
+ * Admin can view all classes and Professors in the system.
+ * Functionality they have includes: editing CLP session attendance. Add or delete attendees from a session.
+ * Do not yet have the data tables for admin but will get that next sprint.  
+ */
 
 function AdminPg() {
     const API_BASE = 'http://localhost:3001/api';
