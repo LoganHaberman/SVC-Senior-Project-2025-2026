@@ -84,23 +84,38 @@ function AdminPg() {
             return;
         }
         if (!selectedSession || !selectedSession.attendees.includes(newStudentName)) {
-            // Update local state
-            const updatedClasses = classes.map(cls => {
-                if (cls.id === selectedClass.id) {
-                    return {
-                        ...cls,
-                        sessions: cls.sessions.map(sess => 
-                            sess.sessionNumber === selectedSessionNumber && !sess.attendees.includes(newStudentName)
-                                ? { ...sess, attendees: [...sess.attendees, newStudentName] }
-                                : sess
-                        )
-                    };
+            try {
+                const response = await fetch(
+                    `${API_BASE}/professors/${selectedClass.profId}/classes/${selectedClass.id}/sessions/${selectedSessionNumber}/attend`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ studentName: newStudentName.trim() })
+                    }
+                );
+                if (!response.ok) {
+                    throw new Error('Failed to add student');
                 }
-                return cls;
-            });
-            setClasses(updatedClasses);
-            setNewStudentName('');
-            setError(null);
+                // Update local state
+                const updatedClasses = classes.map(cls => {
+                    if (cls.uniqueId === selectedClass.uniqueId) {
+                        return {
+                            ...cls,
+                            sessions: cls.sessions.map(sess => 
+                                sess.sessionNumber === selectedSessionNumber && !sess.attendees.includes(newStudentName)
+                                    ? { ...sess, attendees: [...sess.attendees, newStudentName] }
+                                    : sess
+                            )
+                        };
+                    }
+                    return cls;
+                });
+                setClasses(updatedClasses);
+                setNewStudentName('');
+                setError(null);
+            } catch (err) {
+                setError('Failed to add student: ' + (err as Error).message);
+            }
         } else {
             setError('Student already in attendance');
         }
@@ -110,22 +125,35 @@ function AdminPg() {
     const handleRemoveStudent = async (studentName: string) => {
         if (!selectedClass || !selectedSessionNumber) return;
         
-        // Update local state
-        const updatedClasses = classes.map(cls => {
-            if (cls.id === selectedClass.id) {
-                return {
-                    ...cls,
-                    sessions: cls.sessions.map(sess => 
-                        sess.sessionNumber === selectedSessionNumber
-                            ? { ...sess, attendees: sess.attendees.filter(name => name !== studentName) }
-                            : sess
-                    )
-                };
+        try {
+            const response = await fetch(
+                `${API_BASE}/professors/${selectedClass.profId}/classes/${selectedClass.id}/sessions/${selectedSessionNumber}/attend/${encodeURIComponent(studentName)}`,
+                {
+                    method: 'DELETE'
+                }
+            );
+            if (!response.ok) {
+                throw new Error('Failed to remove student');
             }
-            return cls;
-        });
-        setClasses(updatedClasses);
-        setError(null);
+            // Update local state
+            const updatedClasses = classes.map(cls => {
+                if (cls.uniqueId === selectedClass.uniqueId) {
+                    return {
+                        ...cls,
+                        sessions: cls.sessions.map(sess => 
+                            sess.sessionNumber === selectedSessionNumber
+                                ? { ...sess, attendees: sess.attendees.filter(name => name !== studentName) }
+                                : sess
+                        )
+                    };
+                }
+                return cls;
+            });
+            setClasses(updatedClasses);
+            setError(null);
+        } catch (err) {
+            setError('Failed to remove student: ' + (err as Error).message);
+        }
     };
 
     return (
