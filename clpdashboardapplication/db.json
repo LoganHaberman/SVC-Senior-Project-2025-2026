@@ -41,15 +41,15 @@
               "sessionNumber": 1,
               "date": "2026-02-24",
               "attendees": [
-                "Grant Harsch",
-                "joe schmoe"
+                "Grant Harsch"
               ]
             },
             {
               "sessionNumber": 2,
               "date": "2026-03-03",
               "attendees": [
-                "Grant Harsch"
+                "Grant Harsch",
+                "Joe Schmoe"
               ]
             }
           ],
@@ -59,11 +59,11 @@
           "title": "Bio II",
           "code": "BIO102",
           "semester": "Spring 2026",
-          "clpDay": "Monday",
+          "clpDay": "Thursday",
           "sessions": [
             {
               "sessionNumber": 1,
-              "date": "2026-03-02",
+              "date": "2026-02-26",
               "attendees": [
                 "Joe Schmoe"
               ]
@@ -88,6 +88,11 @@
               "sessionNumber": 1,
               "date": "2026-02-25",
               "attendees": []
+            },
+            {
+              "sessionNumber": 2,
+              "date": "2026-03-04",
+              "attendees": []
             }
           ],
           "id": 1
@@ -101,7 +106,9 @@
             {
               "sessionNumber": 1,
               "date": "2026-02-26",
-              "attendees": []
+              "attendees": [
+                "Joe Schmoe"
+              ]
             }
           ],
           "id": 2

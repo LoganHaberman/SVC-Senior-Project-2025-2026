@@ -48,8 +48,8 @@ function StudentPg() {
     useEffect(() => {
         const fetchClasses = async () => {
             try {
-                const response = await fetch('http://localhost:3001/api/professors');
-                const professors: Professor[] = await response.json();
+                const res = await fetch('http://localhost:3001/api/professors');
+                const professors: Professor[] = await res.json();
                 const allClasses: Class[] = [];
                 professors.forEach(prof => {
                     prof.classes.forEach(cls => {
@@ -72,8 +72,8 @@ function StudentPg() {
     useEffect(() => {
         const loadStudents = async () => {
             try {
-                const response = await fetch('/students.csv');
-                const csvText = await response.text();
+                const res = await fetch('/students.csv');
+                const csvText = await res.text();
                 Papa.parse(csvText, {
                     header: true,
                     complete: (results) => {

@@ -78,7 +78,7 @@ function AdminPg() {
         }
         
         try {
-            const response = await fetch(
+            const res = await fetch(
                 `${API_BASE}/professors/${selectedClass.profId}/classes/${selectedClass.id}/sessions/${selectedSessionNumber}/attend`,
                 {
                     method: 'POST',
@@ -86,7 +86,7 @@ function AdminPg() {
                     body: JSON.stringify({ studentName: newStudentName.trim() })
                 }
             );
-            if (!response.ok) throw new Error('Failed to add student');
+            if (!res.ok) throw new Error('Failed to add student');
             
             const updatedClasses = classes.map(cls => {
                 if (cls.uniqueId === selectedClass.uniqueId) {
@@ -113,11 +113,11 @@ function AdminPg() {
         if (!selectedClass || !selectedSessionNumber) return;
         
         try {
-            const response = await fetch(
+            const res = await fetch(
                 `${API_BASE}/professors/${selectedClass.profId}/classes/${selectedClass.id}/sessions/${selectedSessionNumber}/attend/${encodeURIComponent(studentName)}`,
                 { method: 'DELETE' }
             );
-            if (!response.ok) throw new Error('Failed to remove student');
+            if (!res.ok) throw new Error('Failed to remove student');
             
             const updatedClasses = classes.map(cls => {
                 if (cls.uniqueId === selectedClass.uniqueId) {

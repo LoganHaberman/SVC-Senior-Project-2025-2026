@@ -46,6 +46,30 @@ function ProfPg() {
         load()
     }, [])
 
+    const getNextDate = (weekdayName: string) => {
+        const days: Record<string, number> = {
+            Monday: 1,
+            Tuesday: 2,
+            Wednesday: 3,
+            Thursday: 4,
+            Friday: 5,
+        };
+
+        const targetDay = days[weekdayName];
+        if (targetDay === undefined) return null;
+
+        const today = new Date();
+        const currentDay = today.getDay();
+
+        let daysUntil = (targetDay - currentDay + 7) % 7;
+        if (daysUntil === 0) daysUntil = 7; // always NEXT occurrence
+
+        const result = new Date(today);
+        result.setDate(today.getDate() + daysUntil);
+
+        return result.toLocaleDateString('en-CA'); // YYYY-MM-DD (local)
+    };
+
     const handleAddClass = async (e: FormEvent) => {
         e.preventDefault()
         setError(null)
@@ -66,7 +90,7 @@ function ProfPg() {
                     clpDay: formData.clpDay,
                     sessions: [{
                         sessionNumber: 1,
-                        date: new Date().toISOString().split('T')[0],
+                        date: getNextDate(formData.clpDay),
                         attendees: []
                     }]
                 }),
