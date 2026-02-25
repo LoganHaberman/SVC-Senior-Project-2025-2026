@@ -23,43 +23,87 @@ server.post('/api/login', (req, res) => {
   }
 });
 
+// Helper function to generate sessions for a class
+function generateSessionsForClass(db, profId, cls) {
+  if (!cls.clpDay || !cls.sessions || cls.sessions.length === 0) return;
+  
+  const latestSession = cls.sessions.reduce((latest, sess) => 
+    new Date(sess.date) > new Date(latest.date) ? sess : latest
+  );
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayString = today.toISOString().split('T')[0];
+  const latestDateString = latestSession.date;
+  
+  if (latestDateString <= todayString) {
+    let currentDateString = latestDateString;
+    let sessionNumber = latestSession.sessionNumber;
+    const maxFutureWeeks = 4;
+    
+    for (let i = 0; i < maxFutureWeeks; i++) {
+      if (currentDateString <= todayString) {
+        const nextDate = new Date(currentDateString);
+        nextDate.setDate(nextDate.getDate() + 7);
+        const nextDateString = nextDate.toISOString().split('T')[0];
+        
+        // Re-read from database to get latest state and check for duplicates
+        const freshProf = db.get('professors').find({ id: profId }).value();
+        const freshClass = freshProf.classes.find(c => c.id === cls.id);
+        const sessionExists = freshClass.sessions.some(s => s.date === nextDateString);
+        
+        if (!sessionExists) {
+          sessionNumber += 1;
+          db.get('professors').find({ id: profId }).get('classes').find({ id: cls.id }).get('sessions').push({
+            sessionNumber: sessionNumber,
+            date: nextDateString,
+            attendees: []
+          }).write();
+        }
+        currentDateString = nextDateString;
+      } else {
+        break;
+      }
+    }
+  }
+}
+
+// Get all professors with session generation
+server.get('/api/professors', (req, res) => {
+  const db = router.db;
+  const professors = db.get('professors').value();
+  
+  // Generate sessions for all classes in all professors
+  professors.forEach(prof => {
+    if (prof.classes) {
+      prof.classes.forEach(cls => {
+        generateSessionsForClass(db, prof.id, cls);
+      });
+    }
+  });
+  
+  // Re-fetch updated professors
+  const updatedProfessors = db.get('professors').value();
+  res.json(updatedProfessors);
+});
+
 // Get professor by id (includes classes) - with automatic session generation
 server.get('/api/professors/:id', (req, res) => {
   const id = Number(req.params.id);
   const db = router.db;
   const prof = db.get('professors').find({ id }).value();
   if (!prof) return res.status(404).json({ message: 'Professor not found' });
-
-  // Generate next CLP sessions if needed
-  const updatedClasses = prof.classes.map(cls => {
-    if (cls.clpDay && cls.sessions && cls.sessions.length > 0) {
-      const latestSession = cls.sessions.reduce((latest, sess) => 
-        new Date(sess.date) > new Date(latest.date) ? sess : latest
-      );
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const latestDate = new Date(latestSession.date);
-      if (latestDate < today) {
-        // Need to generate next session
-        const nextDate = getNextDateForDay(cls.clpDay, latestDate);
-        const newSessionNumber = latestSession.sessionNumber + 1;
-        cls.sessions.push({
-          sessionNumber: newSessionNumber,
-          date: nextDate,
-          attendees: []
-        });
-        // Update the database
-        db.get('professors').find({ id }).get('classes').find({ id: cls.id }).get('sessions').push({
-          sessionNumber: newSessionNumber,
-          date: nextDate,
-          attendees: []
-        }).write();
-      }
-    }
-    return cls;
-  });
-
-  res.json({ ...prof, classes: updatedClasses });
+  
+  // Generate sessions for all classes
+  if (prof.classes) {
+    prof.classes.forEach(cls => {
+      generateSessionsForClass(db, id, cls);
+    });
+  }
+  
+  // Re-fetch updated professor
+  const updatedProf = db.get('professors').find({ id }).value();
+  res.json(updatedProf);
 });
 
 // Helper function to get next date for a given day

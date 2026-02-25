@@ -37,15 +37,11 @@ interface Professor {
  */
 
 function StudentPg() {
-    const [studentName, setStudentName] = useState<string>('');
     const [cardData, setCardData] = useState<string>('');
     const [status, setStatus] = useState<string>('Ready');
     const [classes, setClasses] = useState<Class[]>([]);
-    const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+    const [selectedClassId, setSelectedClassId] = useState<string>('');
     const [selectedSessionNumber, setSelectedSessionNumber] = useState<number | null>(null);
-    const [loadingClasses, setLoadingClasses] = useState(true);
-    const [currentSession, setCurrentSession] = useState<CLPSession | null>(null);
-    const [searchTerm, setSearchTerm] = useState<string>('');
     const [students, setStudents] = useState<{id: string, name: string}[]>([]);
 
     // Fetch classes from backend
@@ -66,9 +62,7 @@ function StudentPg() {
                 });
                 setClasses(allClasses);
             } catch (error) {
-                setStatus('Failed to load classes: ' + (error as Error).message);
-            } finally {
-                setLoadingClasses(false);
+                setStatus('Error loading classes');
             }
         };
         fetchClasses();
@@ -83,82 +77,46 @@ function StudentPg() {
                 Papa.parse(csvText, {
                     header: true,
                     complete: (results) => {
-                        console.log('Loaded students:', results.data);
                         setStudents(results.data as {id: string, name: string}[]);
                     },
                     error: (error: any) => {
-                        console.error('CSV parse error:', error);
-                        setStatus('Failed to load students: ' + error.message);
+                        setStatus('Error loading students');
                     }
                 });
             } catch (error) {
-                console.error('Fetch CSV error:', error);
-                setStatus('Failed to load students: ' + (error as Error).message);
+                setStatus('Error loading students');
             }
         };
         loadStudents();
     }, []);
 
-    // Reset session selection when class changes
+    // Reset session when class changes
     useEffect(() => {
         setSelectedSessionNumber(null);
     }, [selectedClassId]);
 
-    // Fetch latest CLP session when class is selected
-    useEffect(() => {
-        const fetchLatestSession = async () => {
-            if (!selectedClassId || !selectedSessionNumber) {
-                setCurrentSession(null);
-                return;
-            }
-            try {
-                const selectedClass = classes.find(c => c.uniqueId === selectedClassId);
-                if (selectedClass && selectedClass.sessions.length > 0) {
-                    // Get the selected session by session number
-                    const session = selectedClass.sessions.find(s => s.sessionNumber === selectedSessionNumber);
-                    if (session) {
-                        setCurrentSession(session);
-                        setStatus(`Connected to Session ${session.sessionNumber} (${session.date})`);
-                    } else {
-                        setStatus('Session not found');
-                    }
-                }
-            } catch (error) {
-                setStatus('Failed to load session: ' + (error as Error).message);
-            }
-        };
-        fetchLatestSession();
-    }, [selectedClassId, selectedSessionNumber, classes]);
-
     // Handle card input from HID scanner
     const handleCardInput = async () => {
         const data = cardData;
-        console.log('Raw data:', data);
         const parsedId = parseStudentId(data);
-        console.log('Parsed ID:', parsedId);
         if (parsedId) {
-            setCardData(parsedId); // Show the cleaned ID
+            setCardData(parsedId);
             const student = students.find(s => s.id === parsedId);
             if (student) {
-                setStudentName(student.name);
                 await saveAttendance(student.name);
             } else {
-                setStatus('Student ID not found in database');
+                setStatus('Student ID not found');
             }   
-            // Clear after a short delay to show the cleaned ID
             setTimeout(() => setCardData(''), 1000);
         } else {
-            setCardData(''); // Clear immediately if invalid
+            setCardData('');
         }
-        return;
     };
 
     // Parse ID from card data (either Track 1 or direct ID)
     const parseStudentId = (data: string): string | null => {
-        // Remove any non-digits
         data = data.replace(/\D/g, '');
-        data = data.substring(0, 9); // Ensure max length of 9 digits
-        // Check if it matches the format: 000xxxxxx (9 digits starting with 000)
+        data = data.substring(0, 9);
         if (/^000\d{6}$/.test(data)) {
             return data;
         }
@@ -167,8 +125,8 @@ function StudentPg() {
 
     // Save student attendance to CLP session
     const saveAttendance = async (name: string) => {
-        if (!currentSession || !selectedClassId) {
-            setStatus('No active CLP session for this class');
+        if (!selectedClassId || !selectedSessionNumber) {
+            setStatus('Select class and session first');
             return;
         }
         try {
@@ -178,12 +136,11 @@ function StudentPg() {
                 return;
             }
             
-            const [profIdStr, classIdStr] = selectedClassId.split('-');
+            const [profIdStr] = selectedClassId.split('-');
             const profId = parseInt(profIdStr);
-            const classId = parseInt(classIdStr);
             
             const attendRes = await fetch(
-                `http://localhost:3001/api/professors/${profId}/classes/${selectedClass.id}/sessions/${currentSession.sessionNumber}/attend`,
+                `http://localhost:3001/api/professors/${profId}/classes/${selectedClass.id}/sessions/${selectedSessionNumber}/attend`,
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -191,118 +148,46 @@ function StudentPg() {
                 }
             );
             if (!attendRes.ok) {
-                throw new Error('Failed to save attendance');
+                throw new Error('Failed to save');
             }
             setStatus(`${name} marked present!`);
-            // Clear student name display after a second
-            setTimeout(() => setStudentName(''), 2000);
+            setTimeout(() => setStatus('Ready'), 2000);
         } catch (error) {
-            setStatus('Error saving attendance: ' + (error as Error).message);
+            setStatus('Error saving attendance');
         }
     };
 
     const selectedClass = classes.find(c => c.uniqueId === selectedClassId);
 
     return (
-        <div>
+        <div style={{ padding: 20, fontFamily: 'Arial, sans-serif' }}>
             <h1>Student CLP Dashboard</h1>
             
             {/* Class Selection */}
-            <div>
-                <h2>Select Your Class</h2>
-                {loadingClasses ? (
-                    <p>Loading classes...</p>
-                ) : (
-                    <>
-                        <div style={{ marginBottom: 15 }}>
-                            <input
-                                type="text"
-                                placeholder="Search by professor name or class code"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                style={{
-                                    width: '100%',
-                                    maxWidth: '500px',
-                                    padding: 10,
-                                    fontSize: 14,
-                                    borderRadius: 4,
-                                    border: '1px solid #ccc'
-                                }}
-                            />
-                        </div>
-                        <div>
-                            {classes.filter(cls => {
-                                const searchLower = searchTerm.toLowerCase();
-                                return (
-                                    cls.professorName.toLowerCase().includes(searchLower) ||
-                                    cls.code.toLowerCase().includes(searchLower) ||
-                                    cls.title.toLowerCase().includes(searchLower) ||
-                                    `section ${cls.section}`.toLowerCase().includes(searchLower)
-                                );
-                            }).length === 0 ? (
-                                <p>No classes match your search.</p>
-                            ) : (
-                                <ul style={{ listStyle: 'none', padding: 0, maxWidth: 600 }}>
-                                    {classes
-                                        .filter(cls => {
-                                            const searchLower = searchTerm.toLowerCase();
-                                            return (
-                                                cls.professorName.toLowerCase().includes(searchLower) ||
-                                                cls.code.toLowerCase().includes(searchLower) ||
-                                                cls.title.toLowerCase().includes(searchLower) ||
-                                                `section ${cls.section}`.toLowerCase().includes(searchLower)
-                                            );
-                                        })
-                                        .map(cls => (
-                                        <li key={cls.id} style={{ padding: 0, marginBottom: 6 }}>
-                                            <button
-                                                onClick={() => { setSelectedClassId(cls.uniqueId); setSelectedSessionNumber(null); }}
-                                                style={{
-                                                    width: '100%',
-                                                    padding: 10,
-                                                    backgroundColor: selectedClassId === cls.uniqueId ? '#007bff' : '#f9f9f9',
-                                                    color: selectedClassId === cls.uniqueId ? 'white' : 'black',
-                                                    borderRadius: 6,
-                                                    border: 'none',
-                                                    cursor: 'pointer',
-                                                    display: 'flex',
-                                                    justifyContent: 'space-between',
-                                                    alignItems: 'center',
-                                                    textAlign: 'left',
-                                                    userSelect: 'none',
-                                                    WebkitUserSelect: 'none',
-                                                    MozUserSelect: 'none',
-                                                    msUserSelect: 'none',
-                                                    outline: 'none',
-                                                    WebkitTapHighlightColor: 'transparent'
-                                                }}
-                                                aria-pressed={selectedClassId === cls.uniqueId}
-                                            >
-                                                <div style={{ flex: 1 }}>
-                                                    <div style={{ fontWeight: 600 }}>{cls.professorName} — {cls.code} (Section {cls.section})</div>
-                                                    <div style={{ fontSize: 13, color: '#555' }}>{cls.title} — {cls.semester}</div>
-                                                </div>
-                                                <div style={{ marginLeft: 12, opacity: selectedClassId === cls.uniqueId ? 1 : 0.6 }}>
-                                                    {selectedClassId === cls.uniqueId ? 'Selected' : 'Choose'}
-                                                </div>
-                                            </button>
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                        </div>
-                    </>
-                )}
-                {/* Selected label removed — selection is shown on the class button itself */}
+            <div style={{ marginBottom: 20 }}>
+                <h2>Select Class</h2>
+                <select 
+                    value={selectedClassId} 
+                    onChange={(e) => setSelectedClassId(e.target.value)}
+                    style={{ padding: 10, width: 300 }}
+                >
+                    <option value="">-- Choose a class --</option>
+                    {classes.map(cls => (
+                        <option key={cls.uniqueId} value={cls.uniqueId}>
+                            {cls.professorName} — {cls.code} (Section {cls.section})
+                        </option>
+                    ))}
+                </select>
             </div>
 
             {/* Session Selection */}
             {selectedClass && (
-                <div>
-                    <h2>Select Session Date</h2>
+                <div style={{ marginBottom: 20 }}>
+                    <h2>Select Session</h2>
                     <select 
                         value={selectedSessionNumber || ''} 
                         onChange={(e) => setSelectedSessionNumber(e.target.value ? parseInt(e.target.value) : null)}
+                        style={{ padding: 10, width: 300 }}
                     >
                         <option value="">-- Choose a session --</option>
                         {selectedClass.sessions.map(session => (
@@ -311,33 +196,27 @@ function StudentPg() {
                             </option>
                         ))}
                     </select>
-                    
                 </div>
             )}
 
             {/* Card Scanning */}
             <div>
-                <h2>Card Scanner</h2>
-                {currentSession ? (
-                    <>
-                        <p>Status: {status}</p>
-                        <input
-                            type="text"
-                            value={cardData}
-                            onChange={(e) => setCardData(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                    handleCardInput();
-                                }
-                            }}
-                            placeholder="Swipe card here"
-                            autoFocus
-                            style={{ width: '300px', padding: '10px' }}
-                        />
-                    </>
-                ) : (
-                    <p>Please select a class and session to enable card scanning.</p>
-                )}
+                <h2>Scan Card</h2>
+                <p>Status: {status}</p>
+                <input
+                    type="text"
+                    value={cardData}
+                    onChange={(e) => setCardData(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                            handleCardInput();
+                        }
+                    }}
+                    placeholder="Swipe card or enter ID"
+                    autoFocus
+                    style={{ padding: 10, width: 300 }}
+                    disabled={!selectedClassId || !selectedSessionNumber}
+                />
             </div>
         </div>
     )

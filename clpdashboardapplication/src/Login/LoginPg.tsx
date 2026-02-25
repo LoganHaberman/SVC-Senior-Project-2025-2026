@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 
 /**
  * By: Grant Harsch
- * Date: 11/20/2025 -> 11/25/2025
  * Super simple login page that is really just made for demo purposes. 
  */
 const LoginPg: React.FC = () => {
