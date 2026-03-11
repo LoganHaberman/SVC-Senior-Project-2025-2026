@@ -48,9 +48,18 @@
               "sessionNumber": 2,
               "date": "2026-03-03",
               "attendees": [
-                "Grant Harsch",
                 "Joe Schmoe"
               ]
+            },
+            {
+              "sessionNumber": 3,
+              "date": "2026-03-09",
+              "attendees": []
+            },
+            {
+              "sessionNumber": 4,
+              "date": "2026-03-16",
+              "attendees": []
             }
           ],
           "id": 1
@@ -67,6 +76,21 @@
               "attendees": [
                 "Joe Schmoe"
               ]
+            },
+            {
+              "sessionNumber": 2,
+              "date": "2026-03-05",
+              "attendees": []
+            },
+            {
+              "sessionNumber": 3,
+              "date": "2026-03-11",
+              "attendees": []
+            },
+            {
+              "sessionNumber": 4,
+              "date": "2026-03-18",
+              "attendees": []
             }
           ],
           "id": 2
@@ -93,6 +117,16 @@
               "sessionNumber": 2,
               "date": "2026-03-04",
               "attendees": []
+            },
+            {
+              "sessionNumber": 3,
+              "date": "2026-03-10",
+              "attendees": []
+            },
+            {
+              "sessionNumber": 4,
+              "date": "2026-03-17",
+              "attendees": []
             }
           ],
           "id": 1
@@ -109,6 +143,21 @@
               "attendees": [
                 "Joe Schmoe"
               ]
+            },
+            {
+              "sessionNumber": 2,
+              "date": "2026-03-05",
+              "attendees": []
+            },
+            {
+              "sessionNumber": 3,
+              "date": "2026-03-11",
+              "attendees": []
+            },
+            {
+              "sessionNumber": 4,
+              "date": "2026-03-18",
+              "attendees": []
             }
           ],
           "id": 2
