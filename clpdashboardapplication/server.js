@@ -1,3 +1,8 @@
+// server.js, a bunch of APIs that each do something different
+// By: Grant Harsch
+// Date: 11/20/2025 -> 12/01/2025
+
+// Bunch of setup for json server that gets data from db.json from the router
 const jsonServer = require('json-server');
 const path = require('path');
 
@@ -8,6 +13,8 @@ const middlewares = jsonServer.defaults();
 server.use(middlewares);
 server.use(jsonServer.bodyParser);
 
+// Login endpoint
+// user and pass expected and success role and token are returned
 server.post('/api/login', (req, res) => {
   const { username, password } = req.body;
   const user = router.db.get('users').find({ username, password }).value();
@@ -18,56 +25,9 @@ server.post('/api/login', (req, res) => {
   }
 });
 
-function generateSessionsForClass(db, profId, cls) {
-  if (!cls.clpDay || !cls.sessions || cls.sessions.length === 0) return;
-  
-  const latestSession = cls.sessions.reduce((latest, sess) => 
-    new Date(sess.date) > new Date(latest.date) ? sess : latest
-  );
-  
-  const today = new Date().toISOString().split('T')[0];
-  if (latestSession.date <= today) {
-    let currentDate = latestSession.date;
-    let sessionNum = latestSession.sessionNumber;
-    
-    for (let i = 0; i < 4; i++) {
-      if (currentDate <= today) {
-        const nextDate = new Date(currentDate);
-        nextDate.setDate(nextDate.getDate() + 7);
-        const nextDateStr = nextDate.toISOString().split('T')[0];
-        
-        const freshProf = db.get('professors').find({ id: profId }).value();
-        const freshClass = freshProf.classes.find(c => c.id === cls.id);
-        if (!freshClass.sessions.some(s => s.date === nextDateStr)) {
-          db.get('professors').find({ id: profId }).get('classes').find({ id: cls.id }).get('sessions').push({
-            sessionNumber: sessionNum + 1,
-            date: nextDateStr,
-            attendees: []
-          }).write();
-          sessionNum += 1;
-        }
-        currentDate = nextDateStr;
-      } else {
-        break;
-      }
-    }
-  }
-}
-
-server.get('/api/professors', (req, res) => {
-  const db = router.db;
-  const professors = db.get('professors').value();
-  professors.forEach(prof => {
-    if (prof.classes) {
-      prof.classes.forEach(cls => {
-        generateSessionsForClass(db, prof.id, cls);
-      });
-    }
-  });
-  res.json(db.get('professors').value());
-});
-
-server.get('/api/professors/:id', (req, res) => {
+// Get professor by id (includes classes)
+// When a professor's page is loaded this API is used to get classes pertaining to that prof
+server.get('/api/professors/:id/classes', (req, res) => {
   const id = Number(req.params.id);
   const db = router.db;
   const prof = db.get('professors').find({ id }).value();
@@ -98,6 +58,7 @@ server.post('/api/professors/:id/classes', (req, res) => {
   res.status(201).json(newClass);
 });
 
+// Delete a professor's class from a professor's classes list
 server.delete('/api/professors/:id/classes/:classId', (req, res) => {
   const id = Number(req.params.id);
   const classId = Number(req.params.classId);
@@ -170,6 +131,7 @@ server.delete('/api/professors/:profId/classes/:classId/sessions/:sessionNumber/
 
 server.use('/api', router);
 
+// Using port 3001 to run the server
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
