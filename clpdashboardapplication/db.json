@@ -32,72 +32,44 @@
       "userId": 3,
       "classes": [
         {
-          "id": 1,
-          "title": "Chemistry I",
-          "code": "CHEM101",
-          "section": 1,
-          "semester": "Fall 2025",
+          "title": "Bio I",
+          "code": "BIO101",
+          "semester": "Spring 2026",
+          "clpDay": "Tuesday",
           "sessions": [
             {
               "sessionNumber": 1,
-              "date": "2025-09-15",
-              "attendees": ["John Doe", "Jane Smith", "Bob Johnson"]
+              "date": "2026-02-24",
+              "attendees": [
+                "Grant Harsch"
+              ]
             },
             {
               "sessionNumber": 2,
-              "date": "2025-09-22",
-              "attendees": ["John Doe", "Jane Smith"]
-            },
-            {
-              "sessionNumber": 3,
-              "date": "2025-09-29",
-              "attendees": []
-            },
-            {
-              "sessionNumber": 4,
-              "date": "2025-10-06",
-              "attendees": []
-            },
-            {
-              "sessionNumber": 5,
-              "date": "2025-10-13",
-              "attendees": []
+              "date": "2026-03-03",
+              "attendees": [
+                "Grant Harsch",
+                "Joe Schmoe"
+              ]
             }
-          ]
+          ],
+          "id": 1
         },
         {
-          "id": 2,
-          "title": "Chemistry II",
-          "code": "CHEM201",
-          "section": 2,
-          "semester": "Fall 2025",
+          "title": "Bio II",
+          "code": "BIO102",
+          "semester": "Spring 2026",
+          "clpDay": "Thursday",
           "sessions": [
             {
               "sessionNumber": 1,
-              "date": "2025-09-16",
-              "attendees": ["Alice Cooper", "Charlie Brown", "Diana Prince"]
-            },
-            {
-              "sessionNumber": 2,
-              "date": "2025-09-23",
-              "attendees": []
-            },
-            {
-              "sessionNumber": 3,
-              "date": "2025-09-30",
-              "attendees": []
-            },
-            {
-              "sessionNumber": 4,
-              "date": "2025-10-07",
-              "attendees": []
-            },
-            {
-              "sessionNumber": 5,
-              "date": "2025-10-14",
-              "attendees": []
+              "date": "2026-02-26",
+              "attendees": [
+                "Joe Schmoe"
+              ]
             }
-          ]
+          ],
+          "id": 2
         }
       ]
     },
@@ -107,106 +79,39 @@
       "userId": 4,
       "classes": [
         {
-          "id": 3,
-          "title": "Biology I",
-          "code": "BIO101",
-          "section": 1,
-          "semester": "Fall 2025",
+          "title": "Chem I",
+          "code": "CHEM 101",
+          "semester": "Spring 2026",
+          "clpDay": "Wednesday",
           "sessions": [
             {
               "sessionNumber": 1,
-              "date": "2025-09-17",
-              "attendees": ["Eve Wilson", "Frank Miller"]
+              "date": "2026-02-25",
+              "attendees": []
             },
             {
               "sessionNumber": 2,
-              "date": "2025-09-24",
-              "attendees": []
-            },
-            {
-              "sessionNumber": 3,
-              "date": "2025-10-01",
-              "attendees": []
-            },
-            {
-              "sessionNumber": 4,
-              "date": "2025-10-08",
-              "attendees": []
-            },
-            {
-              "sessionNumber": 5,
-              "date": "2025-10-15",
+              "date": "2026-03-04",
               "attendees": []
             }
-          ]
+          ],
+          "id": 1
         },
         {
-          "id": 4,
-          "title": "Biology II",
-          "code": "BIO102",
-          "section": 2,
-          "semester": "Fall 2025",
+          "title": "Chem II",
+          "code": "Chem 102",
+          "semester": "Spring 2026",
+          "clpDay": "Thursday",
           "sessions": [
             {
               "sessionNumber": 1,
-              "date": "2025-09-18",
-              "attendees": []
-            },
-            {
-              "sessionNumber": 2,
-              "date": "2025-09-25",
-              "attendees": []
-            },
-            {
-              "sessionNumber": 3,
-              "date": "2025-10-02",
-              "attendees": []
-            },
-            {
-              "sessionNumber": 4,
-              "date": "2025-10-09",
-              "attendees": []
-            },
-            {
-              "sessionNumber": 5,
-              "date": "2025-10-16",
-              "attendees": []
+              "date": "2026-02-26",
+              "attendees": [
+                "Joe Schmoe"
+              ]
             }
-          ]
-        },
-        {
-          "id": 5,
-          "title": "Genetics",
-          "code": "BIO301",
-          "section": 1,
-          "semester": "Fall 2025",
-          "sessions": [
-            {
-              "sessionNumber": 1,
-              "date": "2025-09-19",
-              "attendees": []
-            },
-            {
-              "sessionNumber": 2,
-              "date": "2025-09-26",
-              "attendees": []
-            },
-            {
-              "sessionNumber": 3,
-              "date": "2025-10-03",
-              "attendees": []
-            },
-            {
-              "sessionNumber": 4,
-              "date": "2025-10-10",
-              "attendees": []
-            },
-            {
-              "sessionNumber": 5,
-              "date": "2025-10-17",
-              "attendees": []
-            }
-          ]
+          ],
+          "id": 2
         }
       ]
     }
