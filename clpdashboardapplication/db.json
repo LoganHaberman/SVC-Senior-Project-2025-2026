@@ -67,6 +67,11 @@
               "attendees": [
                 "Joe Schmoe"
               ]
+            },
+            {
+              "sessionNumber": 2,
+              "date": "2026-03-05",
+              "attendees": []
             }
           ],
           "id": 2
@@ -109,6 +114,11 @@
               "attendees": [
                 "Joe Schmoe"
               ]
+            },
+            {
+              "sessionNumber": 2,
+              "date": "2026-03-05",
+              "attendees": []
             }
           ],
           "id": 2

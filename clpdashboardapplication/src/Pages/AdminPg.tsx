@@ -142,6 +142,9 @@ function AdminPg() {
     return (
         <div style={{ padding: 20, fontFamily: 'Arial, sans-serif' }}>
             <h1>Admin CLP Dashboard</h1>
+            <button onClick={() => alert('Upload New Roster functionality would be implemented here.')}>
+                Upload New Roster
+            </button>
             {error && <p style={{ color: '#dc3545' }}>{error}</p>}
             
             {loading ? (

@@ -1,0 +1,168 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "username": "admin",
+      "password": "password",
+      "role": "admin"
+    },
+    {
+      "id": 2,
+      "username": "student",
+      "password": "password",
+      "role": "student"
+    },
+    {
+      "id": 3,
+      "username": "professor",
+      "password": "password",
+      "role": "professor"
+    },
+    {
+      "id": 4,
+      "username": "professor2",
+      "password": "password",
+      "role": "professor"
+    }
+  ],
+  "professors": [
+    {
+      "id": 3,
+      "name": "Dr. Example",
+      "userId": 3,
+      "classes": [
+        {
+          "title": "Bio I",
+          "code": "BIO101",
+          "semester": "Spring 2026",
+          "clpDay": "Tuesday",
+          "sessions": [
+            {
+              "sessionNumber": 1,
+              "date": "2026-02-24",
+              "attendees": [
+                "Grant Harsch"
+              ]
+            },
+            {
+              "sessionNumber": 2,
+              "date": "2026-03-03",
+              "attendees": [
+                "Joe Schmoe"
+              ]
+            },
+            {
+              "sessionNumber": 3,
+              "date": "2026-03-09",
+              "attendees": []
+            },
+            {
+              "sessionNumber": 4,
+              "date": "2026-03-16",
+              "attendees": []
+            }
+          ],
+          "id": 1
+        },
+        {
+          "title": "Bio II",
+          "code": "BIO102",
+          "semester": "Spring 2026",
+          "clpDay": "Thursday",
+          "sessions": [
+            {
+              "sessionNumber": 1,
+              "date": "2026-02-26",
+              "attendees": [
+                "Joe Schmoe"
+              ]
+            },
+            {
+              "sessionNumber": 2,
+              "date": "2026-03-05",
+              "attendees": []
+            },
+            {
+              "sessionNumber": 3,
+              "date": "2026-03-11",
+              "attendees": []
+            },
+            {
+              "sessionNumber": 4,
+              "date": "2026-03-18",
+              "attendees": []
+            }
+          ],
+          "id": 2
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Dr. Smith",
+      "userId": 4,
+      "classes": [
+        {
+          "title": "Chem I",
+          "code": "CHEM 101",
+          "semester": "Spring 2026",
+          "clpDay": "Wednesday",
+          "sessions": [
+            {
+              "sessionNumber": 1,
+              "date": "2026-02-25",
+              "attendees": []
+            },
+            {
+              "sessionNumber": 2,
+              "date": "2026-03-04",
+              "attendees": []
+            },
+            {
+              "sessionNumber": 3,
+              "date": "2026-03-10",
+              "attendees": []
+            },
+            {
+              "sessionNumber": 4,
+              "date": "2026-03-17",
+              "attendees": []
+            }
+          ],
+          "id": 1
+        },
+        {
+          "title": "Chem II",
+          "code": "Chem 102",
+          "semester": "Spring 2026",
+          "clpDay": "Thursday",
+          "sessions": [
+            {
+              "sessionNumber": 1,
+              "date": "2026-02-26",
+              "attendees": [
+                "Joe Schmoe"
+              ]
+            },
+            {
+              "sessionNumber": 2,
+              "date": "2026-03-05",
+              "attendees": []
+            },
+            {
+              "sessionNumber": 3,
+              "date": "2026-03-11",
+              "attendees": []
+            },
+            {
+              "sessionNumber": 4,
+              "date": "2026-03-18",
+              "attendees": []
+            }
+          ],
+          "id": 2
+        }
+      ]
+    }
+  ]
+}
