@@ -118,12 +118,44 @@
             {
               "sessionNumber": 2,
               "date": "2026-03-05",
-              "attendees": []
+              "attendees": [
+                "Bob Smith"
+              ]
             }
           ],
           "id": 2
         }
       ]
+    }
+  ],
+  "students": [
+    {
+      "id": "000652146",
+      "name": "Grant Harsch"
+    },
+    {
+      "id": "000123456",
+      "name": "Joe Schmoe"
+    },
+    {
+      "id": "000111111",
+      "name": "Alice Johnson"
+    },
+    {
+      "id": "000222222",
+      "name": "Bob Smith"
+    },
+    {
+      "id": "000333333",
+      "name": "Carol Davis"
+    },
+    {
+      "id": "000444444",
+      "name": "David Wilson"
+    },
+    {
+      "id": "000555555",
+      "name": "Emma Brown"
     }
   ]
 }

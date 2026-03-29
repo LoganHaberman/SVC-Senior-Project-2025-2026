@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react'
-import Papa from 'papaparse'
 
 // This is what will be presented on this page.
 // Each of these items are retrieved from the mock database via API calls in server.js
@@ -27,6 +26,11 @@ interface Professor {
   classes: Class[];
 }
 
+interface Student {
+  id: string;
+  name: string;
+}
+
 /**
  * By Grant Harsch
  * Desc: Student dashboard page.
@@ -42,7 +46,7 @@ function StudentPg() {
     const [classes, setClasses] = useState<Class[]>([]);
     const [selectedClassId, setSelectedClassId] = useState<string>('');
     const [selectedSessionNumber, setSelectedSessionNumber] = useState<number | null>(null);
-    const [students, setStudents] = useState<{id: string, name: string}[]>([]);
+    const [students, setStudents] = useState<Student[]>([]);
 
     // Fetch classes from backend
     useEffect(() => {
@@ -68,21 +72,13 @@ function StudentPg() {
         fetchClasses();
     }, []);
 
-    // Load students CSV
+    // Load students from database API
     useEffect(() => {
         const loadStudents = async () => {
             try {
-                const res = await fetch('/students.csv');
-                const csvText = await res.text();
-                Papa.parse(csvText, {
-                    header: true,
-                    complete: (results) => {
-                        setStudents(results.data as {id: string, name: string}[]);
-                    },
-                    error: (error: any) => {
-                        setStatus('Error loading students');
-                    }
-                });
+                const res = await fetch('http://localhost:3001/api/students');
+                const studentList: Student[] = await res.json();
+                setStudents(studentList);
             } catch (error) {
                 setStatus('Error loading students');
             }

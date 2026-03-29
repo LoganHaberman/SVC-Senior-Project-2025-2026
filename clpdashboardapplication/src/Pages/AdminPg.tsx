@@ -33,6 +33,10 @@ function AdminPg() {
     const [newStudentName, setNewStudentName] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [rosterFile, setRosterFile] = useState<File | null>(null);
+    const [rosterUploading, setRosterUploading] = useState(false);
+    const [rosterSuccess, setRosterSuccess] = useState<string | null>(null);
+    const [showRosterForm, setShowRosterForm] = useState(false);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -109,6 +113,45 @@ function AdminPg() {
         }
     };
 
+    const handleRosterUpload = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        if (!rosterFile) {
+            setError('Please select a file');
+            return;
+        }
+
+        setRosterUploading(true);
+        setError(null);
+        setRosterSuccess(null);
+
+        const formData = new FormData();
+        formData.append('rosterFile', rosterFile);
+
+        try {
+            const res = await fetch(`${API_BASE}/admin/roster`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+                setError(data.message || 'Failed to upload roster');
+                return;
+            }
+
+            setRosterSuccess(`${data.message}`);
+            setRosterFile(null);
+            setShowRosterForm(false);
+            
+            // Clear success message after 3 seconds
+            setTimeout(() => setRosterSuccess(null), 3000);
+        } catch (err) {
+            setError('Failed to upload roster');
+        } finally {
+            setRosterUploading(false);
+        }
+    };
+
     const handleRemoveStudent = async (studentName: string) => {
         if (!selectedClass || !selectedSessionNumber) return;
         
@@ -142,10 +185,80 @@ function AdminPg() {
     return (
         <div style={{ padding: 20, fontFamily: 'Arial, sans-serif' }}>
             <h1>Admin CLP Dashboard</h1>
-            <button onClick={() => alert('Upload New Roster functionality would be implemented here.')}>
-                Upload New Roster
-            </button>
-            {error && <p style={{ color: '#dc3545' }}>{error}</p>}
+            
+            {/* Roster Upload Section */}
+            <div style={{ marginBottom: 20 }}>
+                <button 
+                    onClick={() => setShowRosterForm(!showRosterForm)}
+                    style={{
+                        padding: '10px 20px',
+                        backgroundColor: 'gray',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: 4,
+                        cursor: 'pointer',
+                        fontSize: 14,
+                        fontWeight: 'bold'
+                    }}
+                >
+                    {showRosterForm ? 'Hide Roster Upload' : 'Upload New Roster'}
+                </button>
+                
+                {showRosterForm && (
+                    <div style={{
+                        marginTop: 15,
+                        padding: 20,
+                        backgroundColor: '#f0f8ff',
+                        borderRadius: 4,
+                        border: '1px solid #b3d9ff'
+                    }}>
+                        <h3 style={{ marginTop: 0 }}>Upload Student Roster</h3>
+                        <p style={{ color: '#555', marginBottom: 15 }}>
+                            Upload a CSV file with columns: <strong>id</strong> and <strong>name</strong>
+                        </p>
+                        
+                        <form onSubmit={handleRosterUpload}>
+                            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                                <input
+                                    type="file"
+                                    accept=".csv"
+                                    onChange={(e) => setRosterFile(e.target.files?.[0] || null)}
+                                    disabled={rosterUploading}
+                                    style={{
+                                        padding: 8,
+                                        border: '1px solid #ccc',
+                                        borderRadius: 4,
+                                        flex: 1,
+                                        minWidth: 200
+                                    }}
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={!rosterFile || rosterUploading}
+                                    style={{
+                                        padding: '8px 20px',
+                                        backgroundColor: rosterFile && !rosterUploading ? '#28a745' : '#ccc',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: 4,
+                                        cursor: rosterFile && !rosterUploading ? 'pointer' : 'not-allowed',
+                                        fontWeight: 'bold'
+                                    }}
+                                >
+                                    {rosterUploading ? 'Uploading...' : 'Upload'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                )}
+            </div>
+
+            {rosterSuccess && (
+                <p style={{ color: '#28a745', backgroundColor: '#d4edda', padding: 12, borderRadius: 4, marginBottom: 15 }}>
+                    ✓ {rosterSuccess}
+                </p>
+            )}
+            {error && <p style={{ color: '#dc3545', backgroundColor: '#f8d7da', padding: 12, borderRadius: 4, marginBottom: 15 }}>{error}</p>}
             
             {loading ? (
                 <p>Loading...</p>
