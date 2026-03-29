@@ -210,7 +210,7 @@ function AdminPg() {
                         padding: 20,
                         backgroundColor: '#f0f8ff',
                         borderRadius: 4,
-                        border: '1px solid #b3d9ff'
+                        border: '1px solid gray'
                     }}>
                         <h3 style={{ marginTop: 0 }}>Upload Student Roster</h3>
                         <p style={{ color: '#555', marginBottom: 15 }}>
