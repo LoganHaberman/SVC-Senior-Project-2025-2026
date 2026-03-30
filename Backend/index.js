@@ -11,7 +11,7 @@ const db = mysql.createConnection({
   host: "testmysqlclpdatabase.czaq8g0u0iks.us-east-2.rds.amazonaws.com",
   user: "LearnCO",
   password: "Rajah424!",
-  database: "mysql",
+  database: "Test_access",
 });
 
 db.connect(err => {
@@ -23,8 +23,11 @@ db.connect(err => {
 });
 
 //Login
-app.get("/Users", (req,res) => {
-    db.query("SELECT * FROM Users WHERE username = ? AND password = ?", [req.body.username.trim(), req.body.password.trim()], (err, result) => {
+app.get("/login", (req,res) => {
+  const username = req.query.username;
+  const password = req.query.password;
+  console.log("Login attempt with username:", username);
+    db.query("SELECT * FROM Users WHERE username = ? AND password = ?", [username.trim(), password.trim()], (err, result) => {
         if (err) return res.json({error: err});
         if (result.length > 0) {
             res.json({message: "Login successful", user: result[0]});

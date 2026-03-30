@@ -23,8 +23,8 @@ const LoginPg: React.FC = () => {
     console.log('Attempting login with:', { username, password });  
     const response = await axios.get(`${API_BASE}/login`, {
       params: {
-        username: JSON.stringify({ username: username.trim() }),
-        password: JSON.stringify({ password: password.trim() })
+        username: username.trim(),
+        password: password.trim()
       }
     })
 
@@ -33,14 +33,18 @@ const LoginPg: React.FC = () => {
         throw error; // Rethrow to be caught in the outer catch block
       }
     );
-    console.log(response.data);
+    console.log(response);
+    console.log(response.data.user.role);
     // Depending on what the server tells us about the role of the user, navigate to the correct dashboard
-    const data = await response
+    const data = response
+    console.log(data);
     // Store userId in localStorage for use in other pages
     localStorage.setItem('userId', data.data.userId);
-    if (data.data.role === 'student') navigate('/studentdash');
-    else if (data.data.role === 'professor') navigate('/professordash');
-    else if (data.data.role === 'admin') navigate('/admindash');
+    const userRole = data.data.user.role;
+    console.log(userRole);
+    if (userRole === 'student') navigate('/studentdash');
+    else if (userRole === 'professor') navigate('/professordash');
+    else if (userRole === 'admin') navigate('/admindash');
   } catch (err) {
     setError('Network or server error. Make sure mock server is running on port 3001.');
   }
