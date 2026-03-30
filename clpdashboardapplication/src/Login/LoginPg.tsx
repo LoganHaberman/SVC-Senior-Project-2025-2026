@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
 /**
  * By: Grant Harsch
@@ -8,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 const LoginPg: React.FC = () => {
 
   // Typing basic login variables
-    const API_BASE = 'http://localhost:3001/api' // Not entirely needed but makes calling API endpoints easier
+    const API_BASE = 'http://localhost:5000' // Not entirely needed but makes calling API endpoints easier
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
@@ -19,7 +20,9 @@ const LoginPg: React.FC = () => {
   setError('');
   // Send the user and pass to the mock server for verification
   try {
-    const res = await fetch(`${API_BASE}/login`, {
+    await axios.get(`${API_BASE}/Users`)
+        .then(res => console.log('Users from server:', res.data))
+    const res = await fetch(`${API_BASE}/Users`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: username.trim(), password: password.trim() }),
