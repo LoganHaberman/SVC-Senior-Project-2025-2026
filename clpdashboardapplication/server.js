@@ -5,6 +5,9 @@
 // Bunch of setup for json server that gets data from db.json from the router
 const jsonServer = require('json-server');
 const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
+const csv = require('csv-parser');
 
 const server = jsonServer.create();
 const router = jsonServer.router(path.join(__dirname, 'db.json'));
@@ -12,6 +15,9 @@ const middlewares = jsonServer.defaults();
 
 server.use(middlewares);
 server.use(jsonServer.bodyParser);
+
+// Setup multer for file uploads
+const upload = multer({ dest: 'uploads/' });
 
 // Login endpoint
 // user and pass expected and success role and token are returned
@@ -127,6 +133,73 @@ server.delete('/api/professors/:profId/classes/:classId/sessions/:sessionNumber/
     .write();
   
   res.json({ success: true, studentName });
+});
+
+// Upload roster (CSV file with student IDs and names)
+server.post('/api/admin/roster', upload.single('rosterFile'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ success: false, message: 'No file uploaded' });
+  }
+
+  const students = [];
+  const fileStream = fs.createReadStream(req.file.path);
+
+  fileStream
+    .pipe(csv())
+    .on('data', (row) => {
+      // Expecting columns: id, name
+      if (row.id && row.name) {
+        students.push({ id: row.id.trim(), name: row.name.trim() });
+      }
+    })
+    .on('end', () => {
+      // Read current db.json
+      const dbPath = path.join(__dirname, 'db.json');
+      fs.readFile(dbPath, 'utf8', (err, data) => {
+        // Clean up the temporary upload file
+        fs.unlink(req.file.path, (unlinkErr) => {
+          if (unlinkErr) console.error('Error deleting temp file:', unlinkErr);
+        });
+
+        if (err) {
+          return res.status(500).json({ success: false, message: 'Failed to read database', error: err.message });
+        }
+
+        try {
+          const db = JSON.parse(data);
+          db.students = students;
+          
+          // Write updated db back to file
+          fs.writeFile(dbPath, JSON.stringify(db, null, 2), (writeErr) => {
+            if (writeErr) {
+              return res.status(500).json({ success: false, message: 'Failed to save roster', error: writeErr.message });
+            }
+            
+            res.json({
+              success: true,
+              message: `Roster uploaded successfully with ${students.length} students`,
+              studentCount: students.length
+            });
+          });
+        } catch (parseErr) {
+          return res.status(500).json({ success: false, message: 'Failed to parse database', error: parseErr.message });
+        }
+      });
+    })
+    .on('error', (err) => {
+      // Clean up the temporary upload file
+      fs.unlink(req.file.path, (unlinkErr) => {
+        if (unlinkErr) console.error('Error deleting temp file:', unlinkErr);
+      });
+      res.status(400).json({ success: false, message: 'Error parsing CSV file', error: err.message });
+    });
+});
+
+// Get all students from database
+server.get('/api/students', (req, res) => {
+  const db = router.db;
+  const students = db.get('students').value() || [];
+  res.json(students);
 });
 
 server.use('/api', router);

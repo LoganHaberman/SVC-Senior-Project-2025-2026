@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
+import { jsPDF } from 'jspdf'
+import html2canvas from 'html2canvas'
 
 interface Session {
   sessionNumber: number;
@@ -33,6 +35,12 @@ function AdminPg() {
     const [newStudentName, setNewStudentName] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [rosterFile, setRosterFile] = useState<File | null>(null);
+    const [rosterUploading, setRosterUploading] = useState(false);
+    const [rosterSuccess, setRosterSuccess] = useState<string | null>(null);
+    const [showRosterForm, setShowRosterForm] = useState(false);
+    const [activeTab, setActiveTab] = useState<'manage' | 'reports'>('manage');
+    const reportRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -109,6 +117,45 @@ function AdminPg() {
         }
     };
 
+    const handleRosterUpload = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        if (!rosterFile) {
+            setError('Please select a file');
+            return;
+        }
+
+        setRosterUploading(true);
+        setError(null);
+        setRosterSuccess(null);
+
+        const formData = new FormData();
+        formData.append('rosterFile', rosterFile);
+
+        try {
+            const res = await fetch(`${API_BASE}/admin/roster`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await res.json();
+            if (!res.ok) {
+                setError(data.message || 'Failed to upload roster');
+                return;
+            }
+
+            setRosterSuccess(`${data.message}`);
+            setRosterFile(null);
+            setShowRosterForm(false);
+            
+            // Clear success message after 3 seconds
+            setTimeout(() => setRosterSuccess(null), 3000);
+        } catch (err) {
+            setError('Failed to upload roster');
+        } finally {
+            setRosterUploading(false);
+        }
+    };
+
     const handleRemoveStudent = async (studentName: string) => {
         if (!selectedClass || !selectedSessionNumber) return;
         
@@ -139,13 +186,218 @@ function AdminPg() {
         }
     };
 
+    // Generate report data grouped by semester and course
+    const generateReportData = () => {
+        const reportBySeasonAndCourse: { [key: string]: any[] } = {};
+        
+        classes.forEach(cls => {
+            const semesterKey = cls.semester;
+            if (!reportBySeasonAndCourse[semesterKey]) {
+                reportBySeasonAndCourse[semesterKey] = [];
+            }
+
+            // Get all unique students who attended at least one session
+            const studentAttendanceMap = new Map<string, number>();
+            cls.sessions.forEach(session => {
+                session.attendees.forEach(studentName => {
+                    studentAttendanceMap.set(
+                        studentName,
+                        (studentAttendanceMap.get(studentName) || 0) + 1
+                    );
+                });
+            });
+
+            // Calculate statistics
+            const totalAttendees = studentAttendanceMap.size;
+            let totalAttendance = 0;
+            let attendeesCountGte5 = 0;
+            let attendeesCountLt5 = 0;
+
+            studentAttendanceMap.forEach(count => {
+                totalAttendance += count;
+                if (count >= 5) {
+                    attendeesCountGte5++;
+                } else {
+                    attendeesCountLt5++;
+                }
+            });
+
+            const avgAttendance = totalAttendees > 0 ? (totalAttendance / totalAttendees).toFixed(2) : '0.00';
+
+            reportBySeasonAndCourse[semesterKey].push({
+                code: cls.code,
+                title: cls.title,
+                professor: cls.professorName,
+                totalStudents: totalAttendees,
+                totalAttendance: totalAttendance,
+                avgAttendance: avgAttendance,
+                attendeesGte5: attendeesCountGte5,
+                gpaGte5: 'NA',
+                attendeesLt5: attendeesCountLt5,
+                gpaLt5: 'NA',
+                gpaDifference: 'NA'
+            });
+        });
+
+        return reportBySeasonAndCourse;
+    };
+
+    const reportData = generateReportData();
+
+    const generatePDF = async () => {
+        if (!reportRef.current) return;
+
+        try {
+            const canvas = await html2canvas(reportRef.current, {
+                scale: 2,
+                useCORS: true,
+                logging: false
+            });
+
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4'
+            });
+
+            const imgWidth = 210; // A4 width in mm
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+            let heightLeft = imgHeight;
+            let position = 0;
+
+            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+            heightLeft -= 297; // A4 height in mm
+
+            while (heightLeft > 0) {
+                position = heightLeft - imgHeight;
+                pdf.addPage();
+                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                heightLeft -= 297;
+            }
+
+            pdf.save('CLP_Report.pdf');
+        } catch (err) {
+            setError('Failed to generate PDF');
+            console.error(err);
+        }
+    };
+
     return (
         <div style={{ padding: 20, fontFamily: 'Arial, sans-serif' }}>
             <h1>Admin CLP Dashboard</h1>
-            <button onClick={() => alert('Upload New Roster functionality would be implemented here.')}>
-                Upload New Roster
-            </button>
-            {error && <p style={{ color: '#dc3545' }}>{error}</p>}
+            
+            {/* Tab Navigation */}
+            <div style={{ display: 'flex', gap: 10, marginBottom: 20, borderBottom: '2px solid #007bff' }}>
+                <button
+                    onClick={() => setActiveTab('manage')}
+                    style={{
+                        padding: '10px 20px',
+                        backgroundColor: activeTab === 'manage' ? '#007bff' : '#e9ecef',
+                        color: activeTab === 'manage' ? 'white' : '#333',
+                        border: 'none',
+                        borderRadius: '4px 4px 0 0',
+                        cursor: 'pointer',
+                        fontSize: 14,
+                        fontWeight: 'bold'
+                    }}
+                >
+                    Manage Roster & Sessions
+                </button>
+                <button
+                    onClick={() => setActiveTab('reports')}
+                    style={{
+                        padding: '10px 20px',
+                        backgroundColor: activeTab === 'reports' ? '#007bff' : '#e9ecef',
+                        color: activeTab === 'reports' ? 'white' : '#333',
+                        border: 'none',
+                        borderRadius: '4px 4px 0 0',
+                        cursor: 'pointer',
+                        fontSize: 14,
+                        fontWeight: 'bold'
+                    }}
+                >
+                    Reports
+                </button>
+            </div>
+
+            {/* Manage Roster & Sessions Tab */}
+            {activeTab === 'manage' && (
+            <div>
+            
+            {/* Roster Upload Section */}
+            <div style={{ marginBottom: 20 }}>
+                <button 
+                    onClick={() => setShowRosterForm(!showRosterForm)}
+                    style={{
+                        padding: '10px 20px',
+                        backgroundColor: 'gray',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: 4,
+                        cursor: 'pointer',
+                        fontSize: 14,
+                        fontWeight: 'bold'
+                    }}
+                >
+                    {showRosterForm ? 'Hide Roster Upload' : 'Upload New Roster'}
+                </button>
+                
+                {showRosterForm && (
+                    <div style={{
+                        marginTop: 15,
+                        padding: 20,
+                        backgroundColor: '#f0f8ff',
+                        borderRadius: 4,
+                        border: '1px solid gray'
+                    }}>
+                        <h3 style={{ marginTop: 0 }}>Upload Student Roster</h3>
+                        <p style={{ color: '#555', marginBottom: 15 }}>
+                            Upload a CSV file with columns: <strong>id</strong> and <strong>name</strong>
+                        </p>
+                        
+                        <form onSubmit={handleRosterUpload}>
+                            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                                <input
+                                    type="file"
+                                    accept=".csv"
+                                    onChange={(e) => setRosterFile(e.target.files?.[0] || null)}
+                                    disabled={rosterUploading}
+                                    style={{
+                                        padding: 8,
+                                        border: '1px solid #ccc',
+                                        borderRadius: 4,
+                                        flex: 1,
+                                        minWidth: 200
+                                    }}
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={!rosterFile || rosterUploading}
+                                    style={{
+                                        padding: '8px 20px',
+                                        backgroundColor: rosterFile && !rosterUploading ? '#28a745' : '#ccc',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: 4,
+                                        cursor: rosterFile && !rosterUploading ? 'pointer' : 'not-allowed',
+                                        fontWeight: 'bold'
+                                    }}
+                                >
+                                    {rosterUploading ? 'Uploading...' : 'Upload'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                )}
+            </div>
+
+            {rosterSuccess && (
+                <p style={{ color: '#28a745', backgroundColor: '#d4edda', padding: 12, borderRadius: 4, marginBottom: 15 }}>
+                    ✓ {rosterSuccess}
+                </p>
+            )}
+            {error && <p style={{ color: '#dc3545', backgroundColor: '#f8d7da', padding: 12, borderRadius: 4, marginBottom: 15 }}>{error}</p>}
             
             {loading ? (
                 <p>Loading...</p>
@@ -310,6 +562,104 @@ function AdminPg() {
                         )}
                     </div>
                 </div>
+            )}
+            </div>
+            )}
+
+            {/* Reports Tab */}
+            {activeTab === 'reports' && (
+            <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                    <h2 style={{ margin: 0 }}>Collaborative Learning Program Reports</h2>
+                    <button 
+                        onClick={generatePDF}
+                        style={{
+                            padding: '10px 20px',
+                            backgroundColor: '#28a745',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: 4,
+                            cursor: 'pointer',
+                            fontSize: 14,
+                            fontWeight: 'bold'
+                        }}
+                    >
+                        Download PDF
+                    </button>
+                </div>
+
+                <div ref={reportRef}>
+
+                {Object.keys(reportData).length > 0 ? (
+                    <div>
+                        {Object.keys(reportData).sort().map(semester => (
+                            <div key={semester} style={{ marginBottom: 40 }} className="semester-section">
+                                <h2 style={{ borderBottom: '2px solid #333', paddingBottom: 10, marginBottom: 20 }}>
+                                    {semester} Semester
+                                </h2>
+
+                                {reportData[semester].map((course, idx) => (
+                                    <div key={idx} style={{ marginBottom: 30 }}>
+                                        <h3 style={{ margin: '15px 0 10px 0' }}>
+                                            {course.code} – {course.title}
+                                        </h3>
+                                        <p style={{ margin: '5px 0', color: '#555' }}>
+                                            <strong>Professor:</strong> {course.professor}
+                                        </p>
+
+                                        <div style={{ overflowX: 'auto', marginTop: 15 }}>
+                                            <table style={{
+                                                width: '100%',
+                                                borderCollapse: 'collapse',
+                                                border: '1px solid #333',
+                                                backgroundColor: 'white'
+                                            }}>
+                                                <tbody>
+                                                    <tr style={{ borderBottom: '1px solid #333', backgroundColor: '#f5f5f5' }}>
+                                                        <td style={{ padding: 10, fontWeight: 'bold', width: '50%' }}>Number of students in spreadsheet:</td>
+                                                        <td style={{ padding: 10, textAlign: 'center' }}>{course.totalStudents}</td>
+                                                    </tr>
+                                                    <tr style={{ borderBottom: '1px solid #333' }}>
+                                                        <td style={{ padding: 10, fontWeight: 'bold', width: '50%' }}>Total Attendance:</td>
+                                                        <td style={{ padding: 10, textAlign: 'center' }}>{course.totalAttendance}</td>
+                                                    </tr>
+                                                    <tr style={{ borderBottom: '1px solid #333', backgroundColor: '#f5f5f5' }}>
+                                                        <td style={{ padding: 10, fontWeight: 'bold', width: '50%' }}>Average Number of Attendance:</td>
+                                                        <td style={{ padding: 10, textAlign: 'center' }}>{course.avgAttendance}</td>
+                                                    </tr>
+                                                    <tr style={{ borderBottom: '1px solid #333' }}>
+                                                        <td style={{ padding: 10, fontWeight: 'bold', width: '50%' }}>Total number of students attending 5 or more sessions:</td>
+                                                        <td style={{ padding: 10, textAlign: 'center' }}>{course.attendeesGte5}</td>
+                                                    </tr>
+                                                    <tr style={{ borderBottom: '1px solid #333', backgroundColor: '#f5f5f5' }}>
+                                                        <td style={{ padding: 10, fontWeight: 'bold', width: '50%' }}>Average GPA for students attending 5 or more sessions:</td>
+                                                        <td style={{ padding: 10, textAlign: 'center' }}>{course.gpaGte5}</td>
+                                                    </tr>
+                                                    <tr style={{ borderBottom: '1px solid #333' }}>
+                                                        <td style={{ padding: 10, fontWeight: 'bold', width: '50%' }}>Total number of students attending fewer than 5 sessions:</td>
+                                                        <td style={{ padding: 10, textAlign: 'center' }}>{course.attendeesLt5}</td>
+                                                    </tr>
+                                                    <tr style={{ borderBottom: '1px solid #333', backgroundColor: '#f5f5f5' }}>
+                                                        <td style={{ padding: 10, fontWeight: 'bold', width: '50%' }}>Average GPA for students attending fewer than 5 sessions:</td>
+                                                        <td style={{ padding: 10, textAlign: 'center' }}>{course.gpaLt5}</td>
+                                                    </tr>
+                                                    <tr style={{ backgroundColor: '#f5f5f5' }}>
+                                                        <td style={{ padding: 10, fontWeight: 'bold', width: '50%' }}>Difference in GPA:</td>
+                                                        <td style={{ padding: 10, textAlign: 'center' }}>{course.gpaDifference}</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <p style={{ textAlign: 'center', color: '#999', padding: 20 }}>No report data available</p>
+                )}
+                </div>
+            </div>
             )}
         </div>
     )
