@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
+import axios from 'axios';
 
 interface Session {
   sessionNumber: number;
@@ -28,7 +29,7 @@ interface Professor {
 }
 
 function AdminPg() {
-    const API_BASE = 'http://localhost:3001/api';
+    const API_BASE = 'http://localhost:5000';
     const [classes, setClasses] = useState<Class[]>([]);
     const [selectedClassId, setSelectedClassId] = useState<string>('');
     const [selectedSessionNumber, setSelectedSessionNumber] = useState<number | null>(null);
@@ -46,8 +47,8 @@ function AdminPg() {
         const fetchData = async () => {
             try {
                 setLoading(true);
-                const profRes = await fetch(`${API_BASE}/professors`);
-                const professors: Professor[] = await profRes.json();
+                const profRes = await axios.get(`${API_BASE}/professors`);
+                const professors: Professor[] = await profRes.data;
                 const allClasses: Class[] = [];
                 
                 professors.forEach(prof => {

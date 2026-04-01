@@ -37,10 +37,17 @@ app.get("/login", (req,res) => {
     });
 });
 
+app.get("/professors", (req, res) => {
+  db.query("SELECT * FROM professors", (err, result) => {
+    if (err) return res.json({ error: err });
+    res.json(result);
+  });
+});
+
 
 // Get all users
 app.get("/users", (req, res) => {
-  db.query("SELECT * FROM users", (err, result) => {
+  db.query("SELECT * FROM Users", (err, result) => {
     if (err) return res.json({ error: err });
     res.json(result);
   });
