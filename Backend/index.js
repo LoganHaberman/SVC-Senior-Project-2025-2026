@@ -64,6 +64,14 @@ app.get("/sessions", (req, res) => {
   });
 });
 
+app.get("/attendees", (req, res) => { 
+  const sessionID = req.query.sessionID;
+  db.query("SELECT * FROM Students WHERE studentID IN (SELECT studentID FROM Attendance WHERE sessionID = ?)", [sessionID], (err, result) => {
+    if (err) return res.json({ error: err });
+    res.json(result);
+  });
+});
+
 
 // Get all users
 app.get("/users", (req, res) => {

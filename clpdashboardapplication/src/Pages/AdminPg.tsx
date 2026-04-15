@@ -5,14 +5,20 @@ import axios from 'axios';
 
 interface Session {
   sessionNumber: number;
-  date: string;
+  sessionID: number;
+  sessionDate: string;
   attendees: string[];
+}
+
+interface Student {
+  studentID: number;
+  studentName: string;
 }
 
 interface Class {
   classID: number;
   title: string;
-  code: string;
+  classCode: string;
   section?: number;
   semester: string;
   profId: number;
@@ -51,33 +57,60 @@ function AdminPg() {
                 console.log('Raw Professors Response:', profRes);
                 const professors: Professor[] = await profRes.data;
                 console.log('Fetched Professors:', professors);
-                const allClasses: Class[] = [];
-                
-                professors.forEach(async (prof) => {
-                    console.log(prof.professorID);
-                    const professorClassesRaw = await axios.get(`${API_BASE}/professorClasses`, {
-                        params: { professorId: prof.professorID }
-                    });
-                    const professorClasses = await professorClassesRaw.data;
-                    console.log(`Classes for Professor ${prof.professorName}:`, professorClasses);
-                    professorClasses.forEach(async (cls: Class) => { //for each class
-                        const classSessionsRaw = await axios.get(`${API_BASE}/sessions`, {
-                            params: { classId: cls.classID }
-                        });
-                        const classSessions = await classSessionsRaw.data;
-                        allClasses.push({
-                            classID: cls.classID,
-                            title: cls.title,
-                            code: cls.code,
-                            professorName: prof.professorName,
-                            profId: prof.professorID,
-                            uniqueId: `${prof.professorID}-${cls.classID}`,
-                            semester: cls.semester,
-                            sessions: classSessions
-                        });
-                    });
-                });
-                console.log('All Classes Before Sessions:', allClasses);
+                const allClasses: Class[] = (
+                    await Promise.all(
+                        professors.map(async (prof) => {
+                            const professorClassesRes = await axios.get(`${API_BASE}/professorClasses`, {
+                                params: { professorId: prof.professorID }
+                            });
+
+                            const professorClasses: Class[] = professorClassesRes.data;
+
+                            return Promise.all(
+                                professorClasses.map(async (cls) => {
+                                    const sessionsRes = await axios.get(`${API_BASE}/sessions`, {
+                                        params: { classId: cls.classID }
+                                    });
+                                    console.log('Session Data for ClassID', cls.classID, ':', sessionsRes.data);
+
+                                    const attendeesData = await Promise.all(
+                                        sessionsRes.data.map(async (session: any) => {
+                                            const attendeeNames: string[] = [];
+                                            const attendeesRes = await axios.get(`${API_BASE}/attendees`, {
+                                                params: { sessionID: session.sessionID }
+                                            });
+                                            console.log('Attendees Data for Session', session.sessionNumber, ':', attendeesRes.data);
+                                            attendeesRes.data.forEach((student: Student) => {
+                                                console.log('Processing student:', student.studentName);
+                                                attendeeNames.push(student.studentName);
+                                                
+                                            });
+                                            return attendeeNames;
+                                        })
+                                    );
+
+
+                                    return {
+                                        classID: cls.classID,
+                                        title: cls.title,
+                                        classCode: cls.classCode,
+                                        professorName: prof.professorName,
+                                        profId: prof.professorID,
+                                        uniqueId: `${prof.professorID}-${cls.classID}`,
+                                        semester: cls.semester,
+                                        sessions: sessionsRes.data.map((session: any) => ({
+                                            sessionNumber: session.sessionNumber,
+                                            sessionID: session.sessionID,
+                                            sessionDate: session.sessionDate,
+                                            attendees: attendeesData // Will be populated later when generating reports
+                                        }))
+                                    };
+                                })
+                            );
+                        })
+                    )
+                ).flat();
+                console.log('All Classes with Sessions:', allClasses);
                 setClasses(allClasses);
             } catch (err) {
                 setError('Failed to load data');
@@ -216,8 +249,10 @@ function AdminPg() {
 
             // Get all unique students who attended at least one session
             const studentAttendanceMap = new Map<string, number>();
-            cls.sessions.forEach(session => {
+            cls.sessions.forEach(async session => {
+
                 session.attendees.forEach(studentName => {
+                    console.log('Processing student:', studentName);
                     studentAttendanceMap.set(
                         studentName,
                         (studentAttendanceMap.get(studentName) || 0) + 1
@@ -243,7 +278,7 @@ function AdminPg() {
             const avgAttendance = totalAttendees > 0 ? (totalAttendance / totalAttendees).toFixed(2) : '0.00';
 
             reportBySeasonAndCourse[semesterKey].push({
-                code: cls.code,
+                code: cls.classCode,
                 title: cls.title,
                 professor: cls.professorName,
                 totalStudents: totalAttendees,
@@ -437,7 +472,7 @@ function AdminPg() {
                                         borderRadius: 4
                                     }}
                                 >
-                                    {cls.professorName} - {cls.code}
+                                    {cls.professorName} - {cls.classCode}
                                 </li>
                             ))}
                         </ul>
@@ -448,7 +483,7 @@ function AdminPg() {
                             <>
                                 <h2>{selectedClass.title}</h2>
                                 <p><strong>Professor:</strong> {selectedClass.professorName}</p>
-                                <p><strong>Code:</strong> {selectedClass.code} | <strong>Semester:</strong> {selectedClass.semester}</p>
+                                <p><strong>Code:</strong> {selectedClass.classCode} | <strong>Semester:</strong> {selectedClass.semester}</p>
 
                                 <h3>CLP Sessions</h3>
                                 {selectedClass.sessions && selectedClass.sessions.length > 0 ? (
@@ -467,7 +502,7 @@ function AdminPg() {
                                                 >
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                         <div>
-                                                            <p style={{ margin: 0 }}><strong>Session {session.sessionNumber}</strong> - {session.date}</p>
+                                                            <p style={{ margin: 0 }}><strong>Session {session.sessionNumber}</strong> - {session.sessionDate}</p>
                                                             <p style={{ margin: 4, fontSize: 13, color: '#666' }}>Attendees: {session.attendees.length}</p>
                                                         </div>
                                                         <button
@@ -491,7 +526,7 @@ function AdminPg() {
                                         {selectedSession && (
                                             <div style={{ marginTop: 20, padding: 15, backgroundColor: '#e8f4f8', borderRadius: 4 }}>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
-                                                    <h4 style={{ margin: 0 }}>Session {selectedSession.sessionNumber} - {selectedSession.date}</h4>
+                                                    <h4 style={{ margin: 0 }}>Session {selectedSession.sessionNumber} - {selectedSession.sessionDate}</h4>
                                                     <button 
                                                         onClick={() => setSelectedSessionNumber(null)}
                                                         style={{
