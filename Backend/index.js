@@ -7,14 +7,17 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const db = mysql.createConnection({
+const db = mysql.createPool({
+  connectionLimit: 20,
   host: "testmysqlclpdatabase.czaq8g0u0iks.us-east-2.rds.amazonaws.com",
   user: "LearnCO",
   password: "Rajah424!",
   database: "Test_access",
 });
 
-db.connect(err => {
+
+
+db.getConnection(err => {
   if (err) {
     console.log("MySQL Connection Error:", err);
   } else {
