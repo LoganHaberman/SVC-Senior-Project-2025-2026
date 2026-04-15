@@ -10,7 +10,7 @@ interface Session {
 }
 
 interface Class {
-  id: number;
+  classID: number;
   title: string;
   code: string;
   section?: number;
@@ -22,8 +22,8 @@ interface Class {
 }
 
 interface Professor {
-  id: number;
-  name: string;
+  professorID: number;
+  professorName: string;
   userId: number;
   classes: Class[];
 }
@@ -48,19 +48,36 @@ function AdminPg() {
             try {
                 setLoading(true);
                 const profRes = await axios.get(`${API_BASE}/professors`);
+                console.log('Raw Professors Response:', profRes);
                 const professors: Professor[] = await profRes.data;
+                console.log('Fetched Professors:', professors);
                 const allClasses: Class[] = [];
                 
-                professors.forEach(prof => {
-                    prof.classes.forEach(cls => {
+                professors.forEach(async (prof) => {
+                    console.log(prof.professorID);
+                    const professorClassesRaw = await axios.get(`${API_BASE}/professorClasses`, {
+                        params: { professorId: prof.professorID }
+                    });
+                    const professorClasses = await professorClassesRaw.data;
+                    console.log(`Classes for Professor ${prof.professorName}:`, professorClasses);
+                    professorClasses.forEach(async (cls: Class) => { //for each class
+                        const classSessionsRaw = await axios.get(`${API_BASE}/sessions`, {
+                            params: { classId: cls.classID }
+                        });
+                        const classSessions = await classSessionsRaw.data;
                         allClasses.push({
-                            ...cls,
-                            professorName: prof.name,
-                            profId: prof.id,
-                            uniqueId: `${prof.id}-${cls.id}`
+                            classID: cls.classID,
+                            title: cls.title,
+                            code: cls.code,
+                            professorName: prof.professorName,
+                            profId: prof.professorID,
+                            uniqueId: `${prof.professorID}-${cls.classID}`,
+                            semester: cls.semester,
+                            sessions: classSessions
                         });
                     });
                 });
+                console.log('All Classes Before Sessions:', allClasses);
                 setClasses(allClasses);
             } catch (err) {
                 setError('Failed to load data');
@@ -88,7 +105,7 @@ function AdminPg() {
         
         try {
             const res = await fetch(
-                `${API_BASE}/professors/${selectedClass.profId}/classes/${selectedClass.id}/sessions/${selectedSessionNumber}/attend`,
+                `${API_BASE}/professors/${selectedClass.profId}/classes/${selectedClass.classID}/sessions/${selectedSessionNumber}/attend`,
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -162,7 +179,7 @@ function AdminPg() {
         
         try {
             const res = await fetch(
-                `${API_BASE}/professors/${selectedClass.profId}/classes/${selectedClass.id}/sessions/${selectedSessionNumber}/attend/${encodeURIComponent(studentName)}`,
+                `${API_BASE}/professors/${selectedClass.profId}/classes/${selectedClass.classID}/sessions/${selectedSessionNumber}/attend/${encodeURIComponent(studentName)}`,
                 { method: 'DELETE' }
             );
             if (!res.ok) throw new Error('Failed to remove student');
