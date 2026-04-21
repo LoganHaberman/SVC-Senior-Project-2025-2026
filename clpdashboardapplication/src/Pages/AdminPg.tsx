@@ -1,17 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
+import axios from 'axios';
+import Papa from 'papaparse';
 
 interface Session {
   sessionNumber: number;
-  date: string;
+  sessionID: number;
+  sessionDate: string;
   attendees: string[];
 }
 
+interface Student {
+  studentID: number;
+  studentName: string;
+}
+
 interface Class {
-  id: number;
+  classID: number;
   title: string;
-  code: string;
+  classCode: string;
   section?: number;
   semester: string;
   profId: number;
@@ -21,14 +29,14 @@ interface Class {
 }
 
 interface Professor {
-  id: number;
-  name: string;
+  professorID: number;
+  professorName: string;
   userId: number;
   classes: Class[];
 }
 
 function AdminPg() {
-    const API_BASE = 'http://localhost:3001/api';
+    const API_BASE = 'http://localhost:5000';
     const [classes, setClasses] = useState<Class[]>([]);
     const [selectedClassId, setSelectedClassId] = useState<string>('');
     const [selectedSessionNumber, setSelectedSessionNumber] = useState<number | null>(null);
@@ -46,20 +54,58 @@ function AdminPg() {
         const fetchData = async () => {
             try {
                 setLoading(true);
-                const profRes = await fetch(`${API_BASE}/professors`);
-                const professors: Professor[] = await profRes.json();
-                const allClasses: Class[] = [];
-                
-                professors.forEach(prof => {
-                    prof.classes.forEach(cls => {
-                        allClasses.push({
-                            ...cls,
-                            professorName: prof.name,
-                            profId: prof.id,
-                            uniqueId: `${prof.id}-${cls.id}`
-                        });
-                    });
-                });
+                const profRes = await axios.get(`${API_BASE}/professors`);
+                const professors: Professor[] = await profRes.data;
+                const allClasses: Class[] = (
+                    await Promise.all(
+                        professors.map(async (prof) => {
+                            const professorClassesRes = await axios.get(`${API_BASE}/professorClasses`, {
+                                params: { professorId: prof.professorID }
+                            });
+
+                            const professorClasses: Class[] = professorClassesRes.data;
+
+                            return Promise.all(
+                                professorClasses.map(async (cls) => {
+                                    const sessionsRes = await axios.get(`${API_BASE}/sessions`, {
+                                        params: { classId: cls.classID }
+                                    });
+
+                                    const attendeesData = await Promise.all(
+                                        sessionsRes.data.map(async (session: any) => {
+                                            const attendeeNames: string[] = [];
+                                            const attendeesRes = await axios.get(`${API_BASE}/attendees`, {
+                                                params: { sessionID: session.sessionID }
+                                            });
+                                            attendeesRes.data.forEach((student: Student) => {
+                                                attendeeNames.push(student.studentName);
+                                                
+                                            });
+                                            return attendeeNames;
+                                        })
+                                    );
+
+
+                                    return {
+                                        classID: cls.classID,
+                                        title: cls.title,
+                                        classCode: cls.classCode,
+                                        professorName: prof.professorName,
+                                        profId: prof.professorID,
+                                        uniqueId: `${prof.professorID}-${cls.classID}`,
+                                        semester: cls.semester,
+                                        sessions: sessionsRes.data.map((session: any, index: number) => ({
+                                            sessionNumber: session.sessionNumber,
+                                            sessionID: session.sessionID,
+                                            sessionDate: session.sessionDate,
+                                            attendees: attendeesData[index] // Will be populated later when generating reports
+                                        }))
+                                    };
+                                })
+                            );
+                        })
+                    )
+                ).flat();
                 setClasses(allClasses);
             } catch (err) {
                 setError('Failed to load data');
@@ -74,6 +120,7 @@ function AdminPg() {
     const selectedSession = selectedClass && selectedSessionNumber 
         ? selectedClass.sessions.find(s => s.sessionNumber === selectedSessionNumber)
         : null;
+    const selectedSessionID = selectedSession ? selectedSession.sessionID : null;
 
     const handleAddStudent = async () => {
         if (!newStudentName.trim() || !selectedClass || !selectedSessionNumber) {
@@ -84,18 +131,22 @@ function AdminPg() {
             setError('Student already in attendance');
             return;
         }
-        
+        const newStudentID = await axios.get(`${API_BASE}/students`, {
+            params: { studentName: newStudentName.trim() }
+        });
+        if (!newStudentID.data || newStudentID.data.length === 0) {
+            setError('Student not found in roster');
+            return;
+        }
+
+
         try {
-            const res = await fetch(
-                `${API_BASE}/professors/${selectedClass.profId}/classes/${selectedClass.id}/sessions/${selectedSessionNumber}/attend`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ studentName: newStudentName.trim() })
-                }
-            );
-            if (!res.ok) throw new Error('Failed to add student');
-            
+            const response = await axios.post(`${API_BASE}/addStudents`, {
+                studentId: newStudentID.data[0].studentID,
+                sessionId: selectedSessionID
+            });
+            if (!response.data) throw new Error('Failed to add student');
+
             const updatedClasses = classes.map(cls => {
                 if (cls.uniqueId === selectedClass.uniqueId) {
                     return {
@@ -124,65 +175,94 @@ function AdminPg() {
             return;
         }
 
+
         setRosterUploading(true);
         setError(null);
         setRosterSuccess(null);
 
-        const formData = new FormData();
-        formData.append('rosterFile', rosterFile);
+        const cleanName = (name: string) =>
+            name.replace(/^(Mr\.|Ms\.|Mrs\.)\s*/i, '').trim();
 
-        try {
-            const res = await fetch(`${API_BASE}/admin/roster`, {
-                method: 'POST',
-                body: formData
-            });
+        Papa.parse(rosterFile, {
+            header: true,
+            skipEmptyLines: true,
+            complete: async (results) => {
+                try {
+                    const students = results.data
+                        .map((row: any) => ({
+                            studentID: row['Student ID'],
+                            studentName: cleanName(row['Student Name'] || row['Name'] || '')
+                        }))
+                        .filter((s: any) => s.studentID && s.studentName);
 
-            const data = await res.json();
-            if (!res.ok) {
-                setError(data.message || 'Failed to upload roster');
-                return;
+
+                    const res = await axios.post(`${API_BASE}/admin/roster`, {
+                        students: students
+                    });
+
+                    setRosterSuccess(res.data.message || 'Roster uploaded');
+                    setRosterFile(null);
+                    setShowRosterForm(false);
+                    setTimeout(() => setRosterSuccess(null), 3000);
+
+                } catch (err) {
+                    console.error(err);
+                    setError('Failed to upload roster');
+                } finally {
+                    setRosterUploading(false);
+                }
             }
-
-            setRosterSuccess(`${data.message}`);
-            setRosterFile(null);
-            setShowRosterForm(false);
-            
-            // Clear success message after 3 seconds
-            setTimeout(() => setRosterSuccess(null), 3000);
-        } catch (err) {
-            setError('Failed to upload roster');
-        } finally {
-            setRosterUploading(false);
-        }
+        });
     };
 
     const handleRemoveStudent = async (studentName: string) => {
-        if (!selectedClass || !selectedSessionNumber) return;
-        
-        try {
-            const res = await fetch(
-                `${API_BASE}/professors/${selectedClass.profId}/classes/${selectedClass.id}/sessions/${selectedSessionNumber}/attend/${encodeURIComponent(studentName)}`,
-                { method: 'DELETE' }
-            );
-            if (!res.ok) throw new Error('Failed to remove student');
-            
-            const updatedClasses = classes.map(cls => {
-                if (cls.uniqueId === selectedClass.uniqueId) {
-                    return {
-                        ...cls,
-                        sessions: cls.sessions.map(sess => 
-                            sess.sessionNumber === selectedSessionNumber
-                                ? { ...sess, attendees: sess.attendees.filter(name => name !== studentName) }
-                                : sess
-                        )
-                    };
-                }
-                return cls;
-            });
-            setClasses(updatedClasses);
+    if (!selectedSessionID) return;
+
+    try {
+        // 🔍 Step 1: get student ID
+        const res = await axios.get(`${API_BASE}/students`, {
+            params: { studentName }
+        });
+
+        if (!res.data || res.data.length === 0) {
+            setError("Student not found");
+            return;
+        }
+
+        const studentId = res.data[0].studentID;
+
+        // 🗑 Step 2: delete from attendance
+        await axios.delete(`${API_BASE}/removeStudent`, {
+            data: {
+                studentId,
+                sessionId: selectedSessionID
+            }
+        });
+
+        // 🔄 Step 3: update UI
+        const updatedClasses = classes.map(cls => {
+            if (cls.uniqueId === selectedClass?.uniqueId) {
+                return {
+                    ...cls,
+                    sessions: cls.sessions.map(sess =>
+                        sess.sessionNumber === selectedSessionNumber
+                            ? {
+                                ...sess,
+                                attendees: sess.attendees.filter(name => name !== studentName)
+                              }
+                            : sess
+                    )
+                };
+            }
+            return cls;
+        });
+
+        setClasses(updatedClasses);
             setError(null);
+
         } catch (err) {
-            setError('Failed to remove student');
+            console.error(err);
+            setError("Failed to remove student");
         }
     };
 
@@ -198,7 +278,8 @@ function AdminPg() {
 
             // Get all unique students who attended at least one session
             const studentAttendanceMap = new Map<string, number>();
-            cls.sessions.forEach(session => {
+            cls.sessions.forEach(async session => {
+
                 session.attendees.forEach(studentName => {
                     studentAttendanceMap.set(
                         studentName,
@@ -225,7 +306,7 @@ function AdminPg() {
             const avgAttendance = totalAttendees > 0 ? (totalAttendance / totalAttendees).toFixed(2) : '0.00';
 
             reportBySeasonAndCourse[semesterKey].push({
-                code: cls.code,
+                code: cls.classCode,
                 title: cls.title,
                 professor: cls.professorName,
                 totalStudents: totalAttendees,
@@ -419,7 +500,7 @@ function AdminPg() {
                                         borderRadius: 4
                                     }}
                                 >
-                                    {cls.professorName} - {cls.code}
+                                    {cls.professorName} - {cls.classCode}
                                 </li>
                             ))}
                         </ul>
@@ -430,7 +511,7 @@ function AdminPg() {
                             <>
                                 <h2>{selectedClass.title}</h2>
                                 <p><strong>Professor:</strong> {selectedClass.professorName}</p>
-                                <p><strong>Code:</strong> {selectedClass.code} | <strong>Semester:</strong> {selectedClass.semester}</p>
+                                <p><strong>Code:</strong> {selectedClass.classCode} | <strong>Semester:</strong> {selectedClass.semester}</p>
 
                                 <h3>CLP Sessions</h3>
                                 {selectedClass.sessions && selectedClass.sessions.length > 0 ? (
@@ -449,7 +530,7 @@ function AdminPg() {
                                                 >
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                         <div>
-                                                            <p style={{ margin: 0 }}><strong>Session {session.sessionNumber}</strong> - {session.date}</p>
+                                                            <p style={{ margin: 0 }}><strong>Session {session.sessionNumber}</strong> - {session.sessionDate}</p>
                                                             <p style={{ margin: 4, fontSize: 13, color: '#666' }}>Attendees: {session.attendees.length}</p>
                                                         </div>
                                                         <button
@@ -473,7 +554,7 @@ function AdminPg() {
                                         {selectedSession && (
                                             <div style={{ marginTop: 20, padding: 15, backgroundColor: '#e8f4f8', borderRadius: 4 }}>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
-                                                    <h4 style={{ margin: 0 }}>Session {selectedSession.sessionNumber} - {selectedSession.date}</h4>
+                                                    <h4 style={{ margin: 0 }}>Session {selectedSession.sessionNumber} - {selectedSession.sessionDate}</h4>
                                                     <button 
                                                         onClick={() => setSelectedSessionNumber(null)}
                                                         style={{
