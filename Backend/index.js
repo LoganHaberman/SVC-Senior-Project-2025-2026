@@ -72,6 +72,25 @@ app.get("/attendees", (req, res) => {
   });
 });
 
+app.get("/students", (req, res) => {
+  db.query("SELECT studentID FROM Students WHERE studentName = ?", [req.query.studentName], (err, result) => {
+    if (err) return res.json({ error: err });
+    res.json(result);
+  });
+});
+
+app.post("/addStudents", (req, res) => {
+  console.log("BODY:", req.body);
+  const studentId = req.body.studentId;
+  const sessionId = req.body.sessionId;
+  db.query("INSERT INTO Attendance (studentID, sessionID) VALUES (?, ?)", [studentId, sessionId], (err, result) => {
+    if (err) {
+      console.error("DB ERROR:", err);
+      return res.status(500).json({ error: err });
+    }
+    res.json({ message: "Student added to session successfully" })  ;
+  });
+});
 
 // Get all users
 app.get("/users", (req, res) => {
@@ -80,6 +99,7 @@ app.get("/users", (req, res) => {
     res.json(result);
   });
 });
+
 
 // Insert user
 app.post("/Users", (req, res) => {

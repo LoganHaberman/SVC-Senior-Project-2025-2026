@@ -98,11 +98,11 @@ function AdminPg() {
                                         profId: prof.professorID,
                                         uniqueId: `${prof.professorID}-${cls.classID}`,
                                         semester: cls.semester,
-                                        sessions: sessionsRes.data.map((session: any) => ({
+                                        sessions: sessionsRes.data.map((session: any, index: number) => ({
                                             sessionNumber: session.sessionNumber,
                                             sessionID: session.sessionID,
                                             sessionDate: session.sessionDate,
-                                            attendees: attendeesData // Will be populated later when generating reports
+                                            attendees: attendeesData[index] // Will be populated later when generating reports
                                         }))
                                     };
                                 })
@@ -125,6 +125,7 @@ function AdminPg() {
     const selectedSession = selectedClass && selectedSessionNumber 
         ? selectedClass.sessions.find(s => s.sessionNumber === selectedSessionNumber)
         : null;
+    const selectedSessionID = selectedSession ? selectedSession.sessionID : null;
 
     const handleAddStudent = async () => {
         if (!newStudentName.trim() || !selectedClass || !selectedSessionNumber) {
@@ -135,18 +136,24 @@ function AdminPg() {
             setError('Student already in attendance');
             return;
         }
-        
+        console.log('Adding student:', newStudentName.trim());
+        console.log('Selected Session ID:', selectedSessionID);
+        const newStudentID = await axios.get(`${API_BASE}/students`, {
+            params: { studentName: newStudentName.trim() }
+        });
+        if (!newStudentID.data || newStudentID.data.length === 0) {
+            setError('Student not found in roster');
+            return;
+        }
+
+
         try {
-            const res = await fetch(
-                `${API_BASE}/professors/${selectedClass.profId}/classes/${selectedClass.classID}/sessions/${selectedSessionNumber}/attend`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ studentName: newStudentName.trim() })
-                }
-            );
-            if (!res.ok) throw new Error('Failed to add student');
-            
+            const response = await axios.post(`${API_BASE}/addStudents`, {
+                studentId: newStudentID.data[0].studentID,
+                sessionId: selectedSessionID
+            });
+            if (!response.data) throw new Error('Failed to add student');
+
             const updatedClasses = classes.map(cls => {
                 if (cls.uniqueId === selectedClass.uniqueId) {
                     return {
