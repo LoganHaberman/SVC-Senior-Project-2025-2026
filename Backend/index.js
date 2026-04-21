@@ -92,6 +92,20 @@ app.post("/addStudents", (req, res) => {
   });
 });
 
+app.post('/admin/roster', (req, res) => {
+  console.log("BODY:", req.body);
+  const students = req.body.students;
+
+  students.forEach(({ studentID, studentName }) => {
+    db.query(
+      "INSERT INTO Students (studentID, studentName) VALUES (?, ?) ON DUPLICATE KEY UPDATE studentName = VALUES(studentName)",
+      [studentID, studentName]
+    );
+  });
+
+  res.json({ message: "Roster uploaded successfully" });
+});
+
 // Get all users
 app.get("/users", (req, res) => {
   db.query("SELECT * FROM Users", (err, result) => {

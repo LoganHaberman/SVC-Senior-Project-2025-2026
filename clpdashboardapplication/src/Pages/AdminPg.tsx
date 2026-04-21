@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
 import axios from 'axios';
+import Papa from 'papaparse';
 
 interface Session {
   sessionNumber: number;
@@ -182,36 +183,46 @@ function AdminPg() {
             return;
         }
 
+
         setRosterUploading(true);
         setError(null);
         setRosterSuccess(null);
 
-        const formData = new FormData();
-        formData.append('rosterFile', rosterFile);
+        const cleanName = (name: string) =>
+            name.replace(/^(Mr\.|Ms\.|Mrs\.)\s*/i, '').trim();
 
-        try {
-            const res = await fetch(`${API_BASE}/admin/roster`, {
-                method: 'POST',
-                body: formData
-            });
+        Papa.parse(rosterFile, {
+            header: true,
+            skipEmptyLines: true,
+            complete: async (results) => {
+                try {
+                    // 🔴 IMPORTANT: match these to your actual CSV column names
+                    const students = results.data
+                        .map((row: any) => ({
+                            studentID: row['Student ID'],
+                            studentName: cleanName(row['Student Name'] || row['Name'] || '')
+                        }))
+                        .filter((s: any) => s.studentID && s.studentName);
 
-            const data = await res.json();
-            if (!res.ok) {
-                setError(data.message || 'Failed to upload roster');
-                return;
+                    console.log("Parsed students:", students);
+
+                    const res = await axios.post(`${API_BASE}/admin/roster`, {
+                        students: students
+                    });
+
+                    setRosterSuccess(res.data.message || 'Roster uploaded');
+                    setRosterFile(null);
+                    setShowRosterForm(false);
+                    setTimeout(() => setRosterSuccess(null), 3000);
+
+                } catch (err) {
+                    console.error(err);
+                    setError('Failed to upload roster');
+                } finally {
+                    setRosterUploading(false);
+                }
             }
-
-            setRosterSuccess(`${data.message}`);
-            setRosterFile(null);
-            setShowRosterForm(false);
-            
-            // Clear success message after 3 seconds
-            setTimeout(() => setRosterSuccess(null), 3000);
-        } catch (err) {
-            setError('Failed to upload roster');
-        } finally {
-            setRosterUploading(false);
-        }
+        });
     };
 
     const handleRemoveStudent = async (studentName: string) => {
