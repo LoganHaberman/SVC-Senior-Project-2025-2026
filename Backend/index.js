@@ -106,6 +106,23 @@ app.post('/admin/roster', (req, res) => {
   res.json({ message: "Roster uploaded successfully" });
 });
 
+app.delete("/removeStudent", (req, res) => {
+  const { studentId, sessionId } = req.body;
+
+  db.query(
+    "DELETE FROM Attendance WHERE studentID = ? AND sessionID = ?",
+    [studentId, sessionId],
+    (err, result) => {
+      if (err) {
+        console.error("DB ERROR:", err);
+        return res.status(500).json({ error: err });
+      }
+
+      res.json({ message: "Student removed successfully" });
+    }
+  );
+});
+
 // Get all users
 app.get("/users", (req, res) => {
   db.query("SELECT * FROM Users", (err, result) => {

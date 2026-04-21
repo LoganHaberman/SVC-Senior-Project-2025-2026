@@ -55,9 +55,7 @@ function AdminPg() {
             try {
                 setLoading(true);
                 const profRes = await axios.get(`${API_BASE}/professors`);
-                console.log('Raw Professors Response:', profRes);
                 const professors: Professor[] = await profRes.data;
-                console.log('Fetched Professors:', professors);
                 const allClasses: Class[] = (
                     await Promise.all(
                         professors.map(async (prof) => {
@@ -72,7 +70,6 @@ function AdminPg() {
                                     const sessionsRes = await axios.get(`${API_BASE}/sessions`, {
                                         params: { classId: cls.classID }
                                     });
-                                    console.log('Session Data for ClassID', cls.classID, ':', sessionsRes.data);
 
                                     const attendeesData = await Promise.all(
                                         sessionsRes.data.map(async (session: any) => {
@@ -80,9 +77,7 @@ function AdminPg() {
                                             const attendeesRes = await axios.get(`${API_BASE}/attendees`, {
                                                 params: { sessionID: session.sessionID }
                                             });
-                                            console.log('Attendees Data for Session', session.sessionNumber, ':', attendeesRes.data);
                                             attendeesRes.data.forEach((student: Student) => {
-                                                console.log('Processing student:', student.studentName);
                                                 attendeeNames.push(student.studentName);
                                                 
                                             });
@@ -111,7 +106,6 @@ function AdminPg() {
                         })
                     )
                 ).flat();
-                console.log('All Classes with Sessions:', allClasses);
                 setClasses(allClasses);
             } catch (err) {
                 setError('Failed to load data');
@@ -137,8 +131,6 @@ function AdminPg() {
             setError('Student already in attendance');
             return;
         }
-        console.log('Adding student:', newStudentName.trim());
-        console.log('Selected Session ID:', selectedSessionID);
         const newStudentID = await axios.get(`${API_BASE}/students`, {
             params: { studentName: newStudentName.trim() }
         });
@@ -196,7 +188,6 @@ function AdminPg() {
             skipEmptyLines: true,
             complete: async (results) => {
                 try {
-                    // 🔴 IMPORTANT: match these to your actual CSV column names
                     const students = results.data
                         .map((row: any) => ({
                             studentID: row['Student ID'],
@@ -204,7 +195,6 @@ function AdminPg() {
                         }))
                         .filter((s: any) => s.studentID && s.studentName);
 
-                    console.log("Parsed students:", students);
 
                     const res = await axios.post(`${API_BASE}/admin/roster`, {
                         students: students
@@ -226,32 +216,53 @@ function AdminPg() {
     };
 
     const handleRemoveStudent = async (studentName: string) => {
-        if (!selectedClass || !selectedSessionNumber) return;
-        
-        try {
-            const res = await fetch(
-                `${API_BASE}/professors/${selectedClass.profId}/classes/${selectedClass.classID}/sessions/${selectedSessionNumber}/attend/${encodeURIComponent(studentName)}`,
-                { method: 'DELETE' }
-            );
-            if (!res.ok) throw new Error('Failed to remove student');
-            
-            const updatedClasses = classes.map(cls => {
-                if (cls.uniqueId === selectedClass.uniqueId) {
-                    return {
-                        ...cls,
-                        sessions: cls.sessions.map(sess => 
-                            sess.sessionNumber === selectedSessionNumber
-                                ? { ...sess, attendees: sess.attendees.filter(name => name !== studentName) }
-                                : sess
-                        )
-                    };
-                }
-                return cls;
-            });
-            setClasses(updatedClasses);
+    if (!selectedSessionID) return;
+
+    try {
+        // 🔍 Step 1: get student ID
+        const res = await axios.get(`${API_BASE}/students`, {
+            params: { studentName }
+        });
+
+        if (!res.data || res.data.length === 0) {
+            setError("Student not found");
+            return;
+        }
+
+        const studentId = res.data[0].studentID;
+
+        // 🗑 Step 2: delete from attendance
+        await axios.delete(`${API_BASE}/removeStudent`, {
+            data: {
+                studentId,
+                sessionId: selectedSessionID
+            }
+        });
+
+        // 🔄 Step 3: update UI
+        const updatedClasses = classes.map(cls => {
+            if (cls.uniqueId === selectedClass?.uniqueId) {
+                return {
+                    ...cls,
+                    sessions: cls.sessions.map(sess =>
+                        sess.sessionNumber === selectedSessionNumber
+                            ? {
+                                ...sess,
+                                attendees: sess.attendees.filter(name => name !== studentName)
+                              }
+                            : sess
+                    )
+                };
+            }
+            return cls;
+        });
+
+        setClasses(updatedClasses);
             setError(null);
+
         } catch (err) {
-            setError('Failed to remove student');
+            console.error(err);
+            setError("Failed to remove student");
         }
     };
 
@@ -270,7 +281,6 @@ function AdminPg() {
             cls.sessions.forEach(async session => {
 
                 session.attendees.forEach(studentName => {
-                    console.log('Processing student:', studentName);
                     studentAttendanceMap.set(
                         studentName,
                         (studentAttendanceMap.get(studentName) || 0) + 1
