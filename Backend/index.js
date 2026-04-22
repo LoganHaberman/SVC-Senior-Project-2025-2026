@@ -15,6 +15,11 @@ app.use(express.json());
 
 const db = mysql.createPool({
   connectionLimit: 20,
+  host: "testmysqlclpdatabase.czaq8g0u0iks.us-east-2.rds.amazonaws.com",
+  user: "LearnCO",
+  password: "Rajah424!",
+  database: "Test_access",
+});
 //SAML session setup
 app.use(session({
   secret: "change_this_secret",
@@ -29,15 +34,6 @@ app.use(passport.session());
 //SAML user serialization
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((user, done) => done(null, user));
-
-
-const db = mysql.createConnection({
-  host: "testmysqlclpdatabase.czaq8g0u0iks.us-east-2.rds.amazonaws.com",
-  user: "LearnCO",
-  password: "Rajah424!",
-  database: "Test_access",
-});
-
 
 
 db.getConnection(err => {
