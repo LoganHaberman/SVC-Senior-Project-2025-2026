@@ -36,7 +36,7 @@ interface Professor {
 }
 
 function AdminPg() {
-    const API_BAS = 'http://localhost:5000';
+    const API_BASE = '/api'; // Not entirely needed but makes calling API endpoints easier
     const [classes, setClasses] = useState<Class[]>([]);
     const [selectedClassId, setSelectedClassId] = useState<string>('');
     const [selectedSessionNumber, setSelectedSessionNumber] = useState<number | null>(null);
@@ -54,12 +54,12 @@ function AdminPg() {
         const fetchData = async () => {
             try {
                 setLoading(true);
-                const profRes = await axios.get(`/api/professors`);
+                const profRes = await axios.get(`${API_BASE}/professors`);
                 const professors: Professor[] = await profRes.data;
                 const allClasses: Class[] = (
                     await Promise.all(
                         professors.map(async (prof) => {
-                            const professorClassesRes = await axios.get(`/api/professorClasses`, {
+                            const professorClassesRes = await axios.get(`${API_BASE}/professorClasses`, {
                                 params: { professorId: prof.professorID }
                             });
 
@@ -67,14 +67,14 @@ function AdminPg() {
 
                             return Promise.all(
                                 professorClasses.map(async (cls) => {
-                                    const sessionsRes = await axios.get(`/api/sessions`, {
+                                    const sessionsRes = await axios.get(`${API_BASE}/sessions`, {
                                         params: { classId: cls.classID }
                                     });
 
                                     const attendeesData = await Promise.all(
                                         sessionsRes.data.map(async (session: any) => {
                                             const attendeeNames: string[] = [];
-                                            const attendeesRes = await axios.get(`/api/attendees`, {
+                                            const attendeesRes = await axios.get(`${API_BASE}/attendees`, {
                                                 params: { sessionID: session.sessionID }
                                             });
                                             attendeesRes.data.forEach((student: Student) => {
@@ -131,7 +131,7 @@ function AdminPg() {
             setError('Student already in attendance');
             return;
         }
-        const newStudentID = await axios.get(`/api/students`, {
+        const newStudentID = await axios.get(`${API_BASE}/students`, {
             params: { studentName: newStudentName.trim() }
         });
         if (!newStudentID.data || newStudentID.data.length === 0) {
@@ -141,7 +141,7 @@ function AdminPg() {
 
 
         try {
-            const response = await axios.post(`/api/addStudents`, {
+            const response = await axios.post(`${API_BASE}/addStudents`, {
                 studentId: newStudentID.data[0].studentID,
                 sessionId: selectedSessionID
             });
@@ -196,7 +196,7 @@ function AdminPg() {
                         .filter((s: any) => s.studentID && s.studentName);
 
 
-                    const res = await axios.post(`/api/admin/roster`, {
+                    const res = await axios.post(`${API_BASE}/admin/roster`, {
                         students: students
                     });
 
@@ -219,7 +219,7 @@ function AdminPg() {
     if (!selectedSessionID) return;
 
     try {
-        const res = await axios.get(`/api/students`, {
+        const res = await axios.get(`${API_BASE}/students`, {
             params: { studentName }
         });
 
@@ -230,7 +230,7 @@ function AdminPg() {
 
         const studentId = res.data[0].studentID;
 
-        await axios.delete(`/api/removeStudent`, {
+        await axios.delete(`${API_BASE}/removeStudent`, {
             data: {
                 studentId,
                 sessionId: selectedSessionID

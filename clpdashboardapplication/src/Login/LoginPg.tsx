@@ -9,7 +9,7 @@ import axios from 'axios';
 const LoginPg: React.FC = () => {
 
   // Typing basic login variables
-    const API_BASE = 'http://localhost:5000' // Not entirely needed but makes calling API endpoints easier
+    const API_BASE = '/api' // Not entirely needed but makes calling API endpoints easier
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
@@ -19,12 +19,12 @@ const LoginPg: React.FC = () => {
   e.preventDefault();
   setError('');
   // Send the user and pass to the server for verification
-  const testResponse = await axios.get(`/users`);
+  const testResponse = await axios.get(`${API_BASE}/users`);
   console.log('Users from server:', testResponse.data);
 
   try {
     console.log('Attempting login with:', { username, password });  
-    const response = await axios.get(`/api/login`, {
+    const response = await axios.get(`${API_BASE}/login`, {
       params: {
         username: username.trim(),
         password: password.trim()
