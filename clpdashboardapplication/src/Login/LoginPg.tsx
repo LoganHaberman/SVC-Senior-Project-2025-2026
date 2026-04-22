@@ -19,12 +19,12 @@ const LoginPg: React.FC = () => {
   e.preventDefault();
   setError('');
   // Send the user and pass to the server for verification
-  const testResponse = await axios.get(`${API_BASE}/users`);
+  const testResponse = await axios.get(`/users`);
   console.log('Users from server:', testResponse.data);
 
   try {
     console.log('Attempting login with:', { username, password });  
-    const response = await axios.get(`${API_BASE}/login`, {
+    const response = await axios.get(`/login`, {
       params: {
         username: username.trim(),
         password: password.trim()
