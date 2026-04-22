@@ -24,7 +24,7 @@ const LoginPg: React.FC = () => {
 
   try {
     console.log('Attempting login with:', { username, password });  
-    const response = await axios.get(`/login`, {
+    const response = await axios.get(`/api/login`, {
       params: {
         username: username.trim(),
         password: password.trim()

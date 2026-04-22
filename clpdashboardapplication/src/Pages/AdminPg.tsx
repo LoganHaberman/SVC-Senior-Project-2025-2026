@@ -54,12 +54,12 @@ function AdminPg() {
         const fetchData = async () => {
             try {
                 setLoading(true);
-                const profRes = await axios.get(`/professors`);
+                const profRes = await axios.get(`/api/professors`);
                 const professors: Professor[] = await profRes.data;
                 const allClasses: Class[] = (
                     await Promise.all(
                         professors.map(async (prof) => {
-                            const professorClassesRes = await axios.get(`/professorClasses`, {
+                            const professorClassesRes = await axios.get(`/api/professorClasses`, {
                                 params: { professorId: prof.professorID }
                             });
 
@@ -67,14 +67,14 @@ function AdminPg() {
 
                             return Promise.all(
                                 professorClasses.map(async (cls) => {
-                                    const sessionsRes = await axios.get(`/sessions`, {
+                                    const sessionsRes = await axios.get(`/api/sessions`, {
                                         params: { classId: cls.classID }
                                     });
 
                                     const attendeesData = await Promise.all(
                                         sessionsRes.data.map(async (session: any) => {
                                             const attendeeNames: string[] = [];
-                                            const attendeesRes = await axios.get(`/attendees`, {
+                                            const attendeesRes = await axios.get(`/api/attendees`, {
                                                 params: { sessionID: session.sessionID }
                                             });
                                             attendeesRes.data.forEach((student: Student) => {
@@ -131,7 +131,7 @@ function AdminPg() {
             setError('Student already in attendance');
             return;
         }
-        const newStudentID = await axios.get(`/students`, {
+        const newStudentID = await axios.get(`/api/students`, {
             params: { studentName: newStudentName.trim() }
         });
         if (!newStudentID.data || newStudentID.data.length === 0) {
@@ -141,7 +141,7 @@ function AdminPg() {
 
 
         try {
-            const response = await axios.post(`/addStudents`, {
+            const response = await axios.post(`/api/addStudents`, {
                 studentId: newStudentID.data[0].studentID,
                 sessionId: selectedSessionID
             });
@@ -196,7 +196,7 @@ function AdminPg() {
                         .filter((s: any) => s.studentID && s.studentName);
 
 
-                    const res = await axios.post(`/admin/roster`, {
+                    const res = await axios.post(`/api/admin/roster`, {
                         students: students
                     });
 
@@ -219,8 +219,7 @@ function AdminPg() {
     if (!selectedSessionID) return;
 
     try {
-        // 🔍 Step 1: get student ID
-        const res = await axios.get(`/students`, {
+        const res = await axios.get(`/api/students`, {
             params: { studentName }
         });
 
@@ -231,15 +230,13 @@ function AdminPg() {
 
         const studentId = res.data[0].studentID;
 
-        // 🗑 Step 2: delete from attendance
-        await axios.delete(`/removeStudent`, {
+        await axios.delete(`/api/removeStudent`, {
             data: {
                 studentId,
                 sessionId: selectedSessionID
             }
         });
 
-        // 🔄 Step 3: update UI
         const updatedClasses = classes.map(cls => {
             if (cls.uniqueId === selectedClass?.uniqueId) {
                 return {
