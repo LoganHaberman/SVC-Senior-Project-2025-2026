@@ -48,8 +48,8 @@ db.getConnection(err => {
 const samlStrategy = new SamlStrategy(
   {
     entryPoint: "https://example.com/fake-idp", // TEMP for testing, will get replaced later
-    issuer: "http://10.25.1.252:5000/saml/metadata",
-    callbackUrl: "http://10.25.1.252:5000/saml/acs",
+    issuer: "https://10.25.1.252:5000/saml/metadata", //"https:// /saml/metadata"
+    callbackUrl: "https://10.25.1.252:5000/saml/acs", //"https:// /saml/acs"
     cert: "FAKE_CERT_FOR_NOW",
   },
   (profile, done) => {
