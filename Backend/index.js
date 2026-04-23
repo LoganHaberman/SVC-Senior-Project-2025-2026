@@ -174,6 +174,92 @@ app.delete("/api/removeStudent", (req, res) => {
   );
 });
 
+//Professor Page Stuff
+app.get("/api/getProfClasses", (req, res) => {
+  const userId = req.query.userId;
+
+  db.query(
+    `SELECT 
+      p.professorName,
+
+      c.classID,
+      c.title,
+      c.classCode,
+      c.semester,
+      c.clpDay,
+
+      s.sessionID,
+      s.sessionNumber,
+      s.sessionDate,
+
+      st.studentName
+
+    FROM Professors p
+    LEFT JOIN Sessions s ON p.professorID = s.professorID
+    LEFT JOIN Classes c ON s.classID = c.classID
+    LEFT JOIN Attendance a ON s.sessionID = a.sessionID
+    LEFT JOIN Students st ON a.studentID = st.studentID
+
+    WHERE p.userID = ?
+    ORDER BY c.classID, s.sessionNumber`,
+    [userId],
+    (err, rows) => {
+      if (err) {
+        console.error(err);
+        return res.status(500).json({ error: err });
+      }
+
+    if (rows.length ==0) {
+      return res.json({ name: "", classes: [] });
+    }
+
+    const professorName = rows[0].professorName;
+    const classesMap = {};
+
+    rows.forEach(row => {
+      if (!row.classID) return;
+
+      if (!classesMap[row.classID]) {
+        classesMap[row.classID] = {
+          id: row.classID,
+          title: row.title,
+          code: row.classCode,
+          semester: row.semester,
+          clpDay: row.clpDay,
+          sessions: {}
+        };
+      }
+
+      const cls = classesMap[row.classID];
+
+      if (row.sessionID) {
+        if (!cls.sessions[row.sessionID]) {
+          cls.sessions[row.sessionID] = {
+            sessionNumber: row.sessionNumber,
+            date: row.sessionDate,
+            attendees: []
+          };
+        }
+
+        if (row.studentName) {
+          cls.sessions[row.sessionID].attendees.push(row.studentName);
+        }
+      }
+    });
+
+    // Convert maps → arrays
+    const classes = Object.values(classesMap).map(cls => ({
+      ...cls,
+      sessions: Object.values(cls.sessions)
+    }));
+
+    res.json({
+      name: "Professor", // optional: fetch from DB later
+      classes
+    });
+  });
+});
+
 // Get all users
 app.get("/api/users", (req, res) => {
   db.query("SELECT * FROM Users", (err, result) => {
