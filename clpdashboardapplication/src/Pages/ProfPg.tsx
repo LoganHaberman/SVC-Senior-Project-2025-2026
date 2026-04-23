@@ -1,4 +1,5 @@
 import React, { useEffect, useState, FormEvent } from 'react'
+import axios from 'axios'
 
 type CLPSession = {
     sessionNumber: number;
@@ -17,7 +18,7 @@ type Class = {
 }
 
 function ProfPg() {
-    const API_BASE = 'http://localhost:3001/api'
+    const API_BASE = '/api'
     const profId = parseInt(localStorage.getItem('userId') || '3', 10)
 
     const [profName, setProfName] = useState<string>('')
@@ -29,12 +30,17 @@ function ProfPg() {
     const [formData, setFormData] = useState({ title: '', code: '', semester: '', clpDay: '' })
 
     useEffect(() => {
+        console.log('Loading professor data for userId:', profId)
         async function load() {
             setLoading(true)
             try {
-                const res = await fetch(`${API_BASE}/professors/${profId}`)
-                if (!res.ok) throw new Error('Failed to load professor')
-                const data = await res.json()
+                const res = await axios.get(`${API_BASE}/getProfClasses`, {
+                    params: { userId: profId }
+                })
+                console.log(res);
+                if (!res.data) throw new Error('Failed to load professor')
+                const data = await res.data
+            console.log('Professor data:', data);
                 setProfName(data.name || '')
                 setClasses(data.classes || [])
             } catch (err: any) {
@@ -80,23 +86,15 @@ function ProfPg() {
         }
 
         try {
-            const res = await fetch(`${API_BASE}/professors/${profId}/classes`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    title: formData.title.trim(),
-                    code: formData.code.trim(),
-                    semester: formData.semester.trim(),
-                    clpDay: formData.clpDay,
-                    sessions: [{
-                        sessionNumber: 1,
-                        date: getNextDate(formData.clpDay),
-                        attendees: []
-                    }]
-                }),
+            const res = await axios.post(`${API_BASE}/addClass`, {
+                profId: profId,
+                title: formData.title.trim(),
+                code: formData.code.trim() || undefined,
+                semester: formData.semester.trim() || undefined,
+                clpDay: formData.clpDay
             })
-            if (!res.ok) throw new Error('Failed to add class')
-            const newClass = await res.json()
+            if (!res.data) throw new Error('Failed to add class')
+            const newClass = await res.data
             setClasses(c => [...c, newClass])
             setFormData({ title: '', code: '', semester: '', clpDay: '' })
             setShowForm(false)
@@ -110,10 +108,10 @@ function ProfPg() {
         setError(null)
         
         try {
-            const res = await fetch(`${API_BASE}/professors/${profId}/classes/${classId}`, {
-                method: 'DELETE',
+            const res = await axios.delete(`${API_BASE}/deleteClass`, {
+                data: { classId }
             })
-            if (!res.ok) throw new Error('Failed to delete class')
+            if (!res.data) throw new Error('Failed to delete class')
             setClasses(c => c.filter(cls => cls.id !== classId))
             setSelectedClassId(null)
         } catch (err: any) {

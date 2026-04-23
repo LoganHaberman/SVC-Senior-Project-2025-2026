@@ -42,7 +42,7 @@ const LoginPg: React.FC = () => {
     const data = response
     console.log(data);
     // Store userId in localStorage for use in other pages
-    localStorage.setItem('userId', data.data.userId);
+    localStorage.setItem('userId', data.data.user.idUsers);
     const userRole = data.data.user.role;
     console.log(userRole);
     if (userRole === 'student') navigate('/studentdash');
