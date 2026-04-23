@@ -254,7 +254,7 @@ app.get("/api/getProfClasses", (req, res) => {
     }));
 
     res.json({
-      name: "Professor", // optional: fetch from DB later
+      name: professorName,
       classes
     });
   });
