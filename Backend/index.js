@@ -319,6 +319,17 @@ app.delete("/api/deleteClass", (req, res) => {
   });
 });
 
+//StudentFacilitator Page Stuff
+app.get("/api/professors/list", (req, res) => {
+  db.query(
+    "SELECT professorID as id, professorName as name FROM Professors",
+    (err, result) => {
+      if (err) return res.status(500).json(err);
+      res.json(result);
+    }
+  );
+});
+
 // Get all users
 app.get("/api/users", (req, res) => {
   db.query("SELECT * FROM Users", (err, result) => {

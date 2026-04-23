@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import axios from 'axios';
 
 // This is what will be presented on this page.
 // Each of these items are retrieved from the mock database via API calls in server.js
@@ -41,42 +42,70 @@ interface Student {
  */
 
 function StudentPg() {
+    const API_BASE = '/api'
+
     const [cardData, setCardData] = useState<string>('');
     const [status, setStatus] = useState<string>('Ready');
     const [classes, setClasses] = useState<Class[]>([]);
     const [selectedClassId, setSelectedClassId] = useState<string>('');
     const [selectedSessionNumber, setSelectedSessionNumber] = useState<number | null>(null);
     const [students, setStudents] = useState<Student[]>([]);
+    const [professors, setProfessors] = useState<any[]>([]);
+    const [selectedProfId, setSelectedProfId] = useState<number | null>(null);
 
     // Fetch classes from backend
     useEffect(() => {
-        const fetchClasses = async () => {
-            try {
-                const res = await fetch('http://localhost:3001/api/professors');
-                const professors: Professor[] = await res.json();
-                const allClasses: Class[] = [];
-                professors.forEach(prof => {
-                    prof.classes.forEach(cls => {
-                        allClasses.push({
-                            ...cls,
-                            professorName: prof.name,
-                            uniqueId: `${prof.id}-${cls.id}`
-                        });
-                    });
-                });
-                setClasses(allClasses);
-            } catch (error) {
-                setStatus('Error loading classes');
-            }
-        };
-        fetchClasses();
+    const loadProfessors = async () => {
+        try {
+            const res = await axios.get(`${API_BASE}/professors/list`);
+            const data = await res.data;
+            setProfessors(data);
+        } catch {
+            setStatus('Error loading professors');
+        }
+    };
+
+    
+
+    loadProfessors();
     }, []);
+
+    useEffect(() => {
+    const loadClasses = async () => {
+        if (!selectedProfId) return;
+
+        try {
+            const res = await axios.get(`${API_BASE}/getProfClasses`, {
+                params: { userId: selectedProfId }
+            });
+
+            const data = res.data;
+
+            const formatted = data.classes.map((c: any) => ({
+                id: c.id,
+                title: c.title,
+                code: c.code,
+                section: c.section || 1,
+                semester: c.semester,
+                professorName: data.name,
+                uniqueId: `${selectedProfId}-${c.id}`,
+                sessions: c.sessions || []
+            }));
+
+            setClasses(formatted);
+        } catch {
+            setStatus('Error loading classes');
+        }
+    };
+
+    loadClasses();
+    }, [selectedProfId]);
 
     // Load students from database API
     useEffect(() => {
         const loadStudents = async () => {
             try {
-                const res = await fetch('http://localhost:3001/api/students');
+                const res = await fetch(`${API_BASE}/students`);
                 const studentList: Student[] = await res.json();
                 setStudents(studentList);
             } catch (error) {
@@ -158,7 +187,23 @@ function StudentPg() {
     return (
         <div style={{ padding: 20, fontFamily: 'Arial, sans-serif' }}>
             <h1>Student CLP Dashboard</h1>
-            
+            {/* Professor Selection */}
+            <div style={{ marginBottom: 20 }}>
+                <h2>Select Professor</h2>
+                <select 
+                    value={selectedProfId || ''} 
+                    onChange={(e) => setSelectedProfId(Number(e.target.value))  }
+                    style={{ padding: 10, width: 300 }}
+                >
+                    <option value="">-- Choose a professor --</option>
+                    {professors.map(prof => (
+                        <option key={prof.id} value={prof.id}>
+                            {prof.name}
+                        </option>
+                    ))}
+                </select>
+            </div>
+
             {/* Class Selection */}
             <div style={{ marginBottom: 20 }}>
                 <h2>Select Class</h2>
@@ -170,7 +215,7 @@ function StudentPg() {
                     <option value="">-- Choose a class --</option>
                     {classes.map(cls => (
                         <option key={cls.uniqueId} value={cls.uniqueId}>
-                            {cls.professorName} — {cls.code} (Section {cls.section})
+                            {cls.code} — Section {cls.section}
                         </option>
                     ))}
                 </select>
