@@ -260,6 +260,65 @@ app.get("/api/getProfClasses", (req, res) => {
   });
 });
 
+
+app.post("/api/addClass", (req, res) => {
+  const userId = req.body.profId;
+
+  const { title, code, semester, clpDay } = req.body;
+
+  if (!title || !clpDay) {
+    return res.status(400).json({ error: "Title and CLP day are required" });
+  }
+
+  db.query(
+    "SELECT professorID FROM Professors WHERE userID = ?",
+    [userId],
+    (err, profResult) => {
+      if (err) return res.status(500).json({ error: err });
+
+      if (profResult.length === 0) {
+        return res.status(404).json({ error: "Professor not found" });
+      }
+
+      const professorID = profResult[0].professorID;
+
+      db.query(
+        `INSERT INTO Classes (title, classCode, semester, clpDay)
+         VALUES (?, ?, ?, ?)`,
+        [title, code || null, semester || null, clpDay],
+        (err, classResult) => {
+          if (err) return res.status(500).json({ error: err });
+
+          const classID = classResult.insertId;
+
+          res.json({
+            id: classID,
+            title,
+            code,
+            semester,
+            clpDay,
+            sessions: []
+          });
+        }
+      );
+    }
+  );
+});
+
+app.delete("/api/deleteClass", (req, res) => {
+  const { classId } = req.body;
+
+  db.query("DELETE FROM Classes WHERE classID = ?", [classId], (err, result) => {
+    if (err) return res.status(500).json({ error: err });
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Class not found" });
+    }
+
+    res.json({ message: "Class deleted successfully" });
+  });
+});
+
 // Get all users
 app.get("/api/users", (req, res) => {
   db.query("SELECT * FROM Users", (err, result) => {

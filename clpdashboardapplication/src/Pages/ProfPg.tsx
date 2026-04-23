@@ -86,23 +86,15 @@ function ProfPg() {
         }
 
         try {
-            const res = await fetch(`${API_BASE}/professors/${profId}/classes`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    title: formData.title.trim(),
-                    code: formData.code.trim(),
-                    semester: formData.semester.trim(),
-                    clpDay: formData.clpDay,
-                    sessions: [{
-                        sessionNumber: 1,
-                        date: getNextDate(formData.clpDay),
-                        attendees: []
-                    }]
-                }),
+            const res = await axios.post(`${API_BASE}/addClass`, {
+                profId: profId,
+                title: formData.title.trim(),
+                code: formData.code.trim() || undefined,
+                semester: formData.semester.trim() || undefined,
+                clpDay: formData.clpDay
             })
-            if (!res.ok) throw new Error('Failed to add class')
-            const newClass = await res.json()
+            if (!res.data) throw new Error('Failed to add class')
+            const newClass = await res.data
             setClasses(c => [...c, newClass])
             setFormData({ title: '', code: '', semester: '', clpDay: '' })
             setShowForm(false)
@@ -116,10 +108,10 @@ function ProfPg() {
         setError(null)
         
         try {
-            const res = await fetch(`${API_BASE}/professors/${profId}/classes/${classId}`, {
-                method: 'DELETE',
+            const res = await axios.delete(`${API_BASE}/deleteClass`, {
+                data: { classId }
             })
-            if (!res.ok) throw new Error('Failed to delete class')
+            if (!res.data) throw new Error('Failed to delete class')
             setClasses(c => c.filter(cls => cls.id !== classId))
             setSelectedClassId(null)
         } catch (err: any) {
