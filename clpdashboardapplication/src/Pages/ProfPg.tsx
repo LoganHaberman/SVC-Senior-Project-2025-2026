@@ -30,17 +30,14 @@ function ProfPg() {
     const [formData, setFormData] = useState({ title: '', code: '', semester: '', clpDay: '' })
 
     useEffect(() => {
-        console.log('Loading professor data for userId:', profId)
         async function load() {
             setLoading(true)
             try {
                 const res = await axios.get(`${API_BASE}/getProfClasses`, {
                     params: { userId: profId }
                 })
-                console.log(res);
                 if (!res.data) throw new Error('Failed to load professor')
                 const data = await res.data
-            console.log('Professor data:', data);
                 setProfName(data.name || '')
                 setClasses(data.classes || [])
             } catch (err: any) {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import axios from 'axios';
 
 // This is what will be presented on this page.
 // Each of these items are retrieved from the mock database via API calls in server.js
@@ -27,7 +28,7 @@ interface Professor {
 }
 
 interface Student {
-  id: string;
+  studentID: number;
   name: string;
 }
 
@@ -41,43 +42,70 @@ interface Student {
  */
 
 function StudentPg() {
+    const API_BASE = '/api'
+
     const [cardData, setCardData] = useState<string>('');
     const [status, setStatus] = useState<string>('Ready');
     const [classes, setClasses] = useState<Class[]>([]);
     const [selectedClassId, setSelectedClassId] = useState<string>('');
     const [selectedSessionNumber, setSelectedSessionNumber] = useState<number | null>(null);
     const [students, setStudents] = useState<Student[]>([]);
+    const [professors, setProfessors] = useState<any[]>([]);
+    const [selectedProfId, setSelectedProfId] = useState<number | null>(null);
 
     // Fetch classes from backend
     useEffect(() => {
-        const fetchClasses = async () => {
-            try {
-                const res = await fetch('http://localhost:3001/api/professors');
-                const professors: Professor[] = await res.json();
-                const allClasses: Class[] = [];
-                professors.forEach(prof => {
-                    prof.classes.forEach(cls => {
-                        allClasses.push({
-                            ...cls,
-                            professorName: prof.name,
-                            uniqueId: `${prof.id}-${cls.id}`
-                        });
-                    });
-                });
-                setClasses(allClasses);
-            } catch (error) {
-                setStatus('Error loading classes');
-            }
-        };
-        fetchClasses();
+    const loadProfessors = async () => {
+        try {
+            const res = await axios.get(`${API_BASE}/professors/list`);
+            const data = await res.data;
+            setProfessors(data);
+        } catch {
+            setStatus('Error loading professors');
+        }
+    };
+
+    loadProfessors();
     }, []);
+
+    useEffect(() => {
+    const loadClasses = async () => {
+        if (!selectedProfId) return;
+
+        try {
+            const res = await axios.get(`${API_BASE}/getProfClasses`, {
+                params: { userId: selectedProfId }
+            });
+
+            const data = res.data;
+
+            const formatted = data.classes.map((c: any) => ({
+                id: c.id,
+                title: c.title,
+                code: c.code,
+                section: c.section || 1,
+                semester: c.semester,
+                professorName: data.name,
+                uniqueId: `${selectedProfId}-${c.id}`,
+                sessions: c.sessions || []
+            }));
+
+            setClasses(formatted);
+        } catch {
+            setStatus('Error loading classes');
+        }
+    };
+
+    loadClasses();
+    }, [selectedProfId]);
 
     // Load students from database API
     useEffect(() => {
         const loadStudents = async () => {
             try {
-                const res = await fetch('http://localhost:3001/api/students');
-                const studentList: Student[] = await res.json();
+                console.log('Loading students from server...');
+                const res = await axios.get(`${API_BASE}/allStudents`);
+                const studentList: Student[] = await res.data;
                 setStudents(studentList);
             } catch (error) {
                 setStatus('Error loading students');
@@ -96,10 +124,11 @@ function StudentPg() {
         const data = cardData;
         const parsedId = parseStudentId(data);
         if (parsedId) {
-            setCardData(parsedId);
-            const student = students.find(s => s.id === parsedId);
+            const setParsedId = String(parsedId);
+            setCardData(setParsedId);
+            const student = students.find(s => s.studentID === parsedId);
             if (student) {
-                await saveAttendance(student.name);
+                await saveAttendance(Number(student.studentID));
             } else {
                 setStatus('Student ID not found');
             }   
@@ -110,46 +139,79 @@ function StudentPg() {
     };
 
     // Parse ID from card data (either Track 1 or direct ID)
-    const parseStudentId = (data: string): string | null => {
-        data = data.replace(/\D/g, '');
-        data = data.substring(0, 9);
-        if (/^000\d{6}$/.test(data)) {
-            return data;
+    const parseStudentId = (data: string): number | null => {
+        const digits = data.replace(/\D/g, '');
+        if (!digits) {
+            console.warn('No digits found in card data');
+            return null;   
         }
-        return null;
-    };
+        
+        const id = Number(digits);
 
-    // Save student attendance to CLP session
-    const saveAttendance = async (name: string) => {
-        if (!selectedClassId || !selectedSessionNumber) {
-            setStatus('Select class and session first');
-            return;
+        if (isNaN(id)) {
+            console.warn('Parsed ID is not a valid number:', id);
+            return null;        
         }
+
+        return id;
+    };
+    // Save student attendance to CLP session
+    const saveAttendance = async (studentId: number) => {
         try {
             const selectedClass = classes.find(c => c.uniqueId === selectedClassId);
+
             if (!selectedClass) {
                 setStatus('Class not found');
                 return;
             }
-            
-            const [profIdStr] = selectedClassId.split('-');
-            const profId = parseInt(profIdStr);
-            
-            const attendRes = await fetch(
-                `http://localhost:3001/api/professors/${profId}/classes/${selectedClass.id}/sessions/${selectedSessionNumber}/attend`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ studentName: name })
-                }
-            );
-            if (!attendRes.ok) {
-                throw new Error('Failed to save');
+
+            const res = await axios.post(`${API_BASE}/attendance`, {
+                studentId,
+                classId: selectedClass.id,
+                sessionNumber: selectedSessionNumber
+            });
+
+            if (res.status !== 200) {
+                throw new Error('Failed to save attendance');
             }
-            setStatus(`${name} marked present!`);
+
+            setStatus(`Student marked present!`);
             setTimeout(() => setStatus('Ready'), 2000);
+
         } catch (error) {
+            console.error(error);
             setStatus('Error saving attendance');
+        }
+    };
+
+    const handleAddSession = async () => {
+        if (!selectedClass) {
+            setStatus("Select a class first");
+            return;
+        }
+
+        try {
+            const res = await axios.post(
+                `${API_BASE}/classes/${selectedClass.id}/sessions`
+            );
+
+            const newSession = res.data;
+
+            setClasses(prev =>
+                prev.map(cls =>
+                    cls.id === selectedClass.id
+                        ? {
+                            ...cls,
+                            sessions: [...cls.sessions, newSession]
+                        }
+                        : cls
+                )
+            );
+
+            setStatus(`Session ${newSession.sessionNumber} created`);
+        } catch (err) {
+            console.error(err);
+            setStatus("Error creating session");
         }
     };
 
@@ -158,7 +220,23 @@ function StudentPg() {
     return (
         <div style={{ padding: 20, fontFamily: 'Arial, sans-serif' }}>
             <h1>Student CLP Dashboard</h1>
-            
+            {/* Professor Selection */}
+            <div style={{ marginBottom: 20 }}>
+                <h2>Select Professor</h2>
+                <select 
+                    value={selectedProfId || ''} 
+                    onChange={(e) => setSelectedProfId(Number(e.target.value))  }
+                    style={{ padding: 10, width: 300 }}
+                >
+                    <option value="">-- Choose a professor --</option>
+                    {professors.map(prof => (
+                        <option key={prof.id} value={prof.id}>
+                            {prof.name}
+                        </option>
+                    ))}
+                </select>
+            </div>
+
             {/* Class Selection */}
             <div style={{ marginBottom: 20 }}>
                 <h2>Select Class</h2>
@@ -170,7 +248,7 @@ function StudentPg() {
                     <option value="">-- Choose a class --</option>
                     {classes.map(cls => (
                         <option key={cls.uniqueId} value={cls.uniqueId}>
-                            {cls.professorName} — {cls.code} (Section {cls.section})
+                            {cls.code} — Section {cls.section}
                         </option>
                     ))}
                 </select>
@@ -192,6 +270,23 @@ function StudentPg() {
                             </option>
                         ))}
                     </select>
+                </div>
+            )}
+            {selectedClass && (
+                <div style={{ marginBottom: 20 }}>
+                    <button
+                        onClick={handleAddSession}
+                        style={{
+                            padding: '8px 16px',
+                            backgroundColor: '#007bff',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: 4,
+                            cursor: 'pointer'
+                        }}
+                    >
+                        Add New Session
+                    </button>
                 </div>
             )}
 

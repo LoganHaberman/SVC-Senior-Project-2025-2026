@@ -319,6 +319,97 @@ app.delete("/api/deleteClass", (req, res) => {
   });
 });
 
+//StudentFacilitator Page Stuff
+app.get("/api/professors/list", (req, res) => {
+  db.query(
+    "SELECT professorID as id, professorName as name FROM Professors",
+    (err, result) => {
+      if (err) return res.status(500).json(err);
+      res.json(result);
+    }
+  );
+});
+
+app.get("/api/allStudents", (req, res) => {
+  db.query("SELECT studentID, studentName FROM Students", (err, result) => {
+    if (err) return res.status(500).json(err);
+    res.json(result);
+  });
+});
+
+app.post("/api/attendance", (req, res) => {
+  console.log("ATTENDANCE HIT:", req.body);
+  const studentId = parseInt(req.body.studentId, 10);
+  const classId = req.body.classId;
+  const sessionNumber = req.body.sessionNumber;
+
+  if (!studentId || !classId || !sessionNumber) {
+    return res.status(400).json({ error: "Missing fields" });
+  }
+
+  db.query(
+    `SELECT sessionID FROM Sessions WHERE classID = ? AND sessionNumber = ?`,
+    [classId, sessionNumber],
+    (err, sessionResult) => {
+      if (err) return res.status(500).json(err);
+
+      if (sessionResult.length === 0) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+
+      const sessionID = sessionResult[0].sessionID;
+
+      db.query(
+        `INSERT INTO Attendance (sessionID, studentID) VALUES (?, ?)`,
+        [sessionID, studentId],
+        (err) => {
+          if (err) return res.status(500).json(err);
+
+          res.json({ success: true });
+        }
+      );
+    }
+  );
+});
+
+app.post("/api/classes/:classId/sessions", (req, res) => {
+  const classId = parseInt(req.params.classId, 10);
+
+  if (isNaN(classId)) {
+    return res.status(400).json({ error: "Invalid class ID" });
+  }
+
+  // Get next session number
+  db.query(
+    `SELECT MAX(sessionNumber) AS maxSession FROM Sessions WHERE classID = ?`,
+    [classId],
+    (err, result) => {
+      if (err) return res.status(500).json(err);
+
+      const nextSessionNumber = (result[0].maxSession || 0) + 1;
+
+      const sessionDate = new Date(); // or pass from frontend
+
+      db.query(
+        `INSERT INTO Sessions (sessionNumber, sessionDate, classID)
+         VALUES (?, ?, ?)`,
+        [nextSessionNumber, sessionDate, classId],
+        (err, insertResult) => {
+          if (err) return res.status(500).json(err);
+
+          res.json({
+            sessionID: insertResult.insertId,
+            sessionNumber: nextSessionNumber,
+            date: sessionDate.toISOString().split("T")[0],
+            attendees: []
+          });
+        }
+      );
+    }
+  );
+});
+
+
 // Get all users
 app.get("/api/users", (req, res) => {
   db.query("SELECT * FROM Users", (err, result) => {

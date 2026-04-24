@@ -20,10 +20,8 @@ const LoginPg: React.FC = () => {
   setError('');
   // Send the user and pass to the server for verification
   const testResponse = await axios.get(`${API_BASE}/users`);
-  console.log('Users from server:', testResponse.data);
 
   try {
-    console.log('Attempting login with:', { username, password });  
     const response = await axios.get(`${API_BASE}/login`, {
       params: {
         username: username.trim(),
@@ -36,15 +34,11 @@ const LoginPg: React.FC = () => {
         throw error; // Rethrow to be caught in the outer catch block
       }
     );
-    console.log(response);
-    console.log(response.data.user.role);
     // Depending on what the server tells us about the role of the user, navigate to the correct dashboard
     const data = response
-    console.log(data);
     // Store userId in localStorage for use in other pages
     localStorage.setItem('userId', data.data.user.idUsers);
     const userRole = data.data.user.role;
-    console.log(userRole);
     if (userRole === 'student') navigate('/studentdash');
     else if (userRole === 'professor') navigate('/professordash');
     else if (userRole === 'admin') navigate('/admindash');
