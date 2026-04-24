@@ -105,9 +105,7 @@ function StudentPg() {
             try {
                 console.log('Loading students from server...');
                 const res = await axios.get(`${API_BASE}/allStudents`);
-                console.log('Students from server:', res.data);
                 const studentList: Student[] = await res.data;
-                console.log('Formatted student list:', studentList);
                 setStudents(studentList);
             } catch (error) {
                 setStatus('Error loading students');
@@ -123,14 +121,11 @@ function StudentPg() {
 
     // Handle card input from HID scanner
     const handleCardInput = async () => {
-        console.log('Handle card input:', cardData);
         const data = cardData;
         const parsedId = parseStudentId(data);
-        console.log('Parsed student ID:', parsedId);
         if (parsedId) {
             const setParsedId = String(parsedId);
             setCardData(setParsedId);
-            console.log('Students list for ID matching:', students);
             const student = students.find(s => s.studentID === parsedId);
             if (student) {
                 await saveAttendance(Number(student.studentID));
@@ -146,26 +141,22 @@ function StudentPg() {
     // Parse ID from card data (either Track 1 or direct ID)
     const parseStudentId = (data: string): number | null => {
         const digits = data.replace(/\D/g, '');
-        console.log('Data after removing non-digits:', digits);
         if (!digits) {
             console.warn('No digits found in card data');
             return null;   
         }
         
-        console.log('Digits extracted from card data:', digits);
         const id = Number(digits);
 
         if (isNaN(id)) {
             console.warn('Parsed ID is not a valid number:', id);
             return null;        
         }
-        console.log('Parsed ID:', id);
 
         return id;
     };
     // Save student attendance to CLP session
     const saveAttendance = async (studentId: number) => {
-        console.log('Saving attendance for student ID:', studentId);
         try {
             const selectedClass = classes.find(c => c.uniqueId === selectedClassId);
 
@@ -174,7 +165,6 @@ function StudentPg() {
                 return;
             }
 
-            console.log('Saving attendance for student ID:', studentId);
             const res = await axios.post(`${API_BASE}/attendance`, {
                 studentId,
                 classId: selectedClass.id,
