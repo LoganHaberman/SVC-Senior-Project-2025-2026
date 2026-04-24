@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
 /**
  * By: Grant Harsch
@@ -8,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 const LoginPg: React.FC = () => {
 
   // Typing basic login variables
-    const API_BASE = 'http://localhost:3001/api' // Not entirely needed but makes calling API endpoints easier
+    const API_BASE = '/api' // Not entirely needed but makes calling API endpoints easier
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
@@ -17,27 +18,30 @@ const LoginPg: React.FC = () => {
     const handleLogin = async (e: React.FormEvent) => {
   e.preventDefault();
   setError('');
-  // Send the user and pass to the mock server for verification
+  // Send the user and pass to the server for verification
+  const testResponse = await axios.get(`${API_BASE}/users`);
+
   try {
-    const res = await fetch(`${API_BASE}/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: username.trim(), password: password.trim() }),
-    });
+    const response = await axios.get(`${API_BASE}/login`, {
+      params: {
+        username: username.trim(),
+        password: password.trim()
+      }
+    })
 
-    if (!res.ok) {
-      const err = await res.json();
-      setError(err.message || 'Login failed');
-      return;
-    }
-
+      .catch(error => {
+        console.error('Error during login:', error);
+        throw error; // Rethrow to be caught in the outer catch block
+      }
+    );
     // Depending on what the server tells us about the role of the user, navigate to the correct dashboard
-    const data = await res.json();
+    const data = response
     // Store userId in localStorage for use in other pages
-    localStorage.setItem('userId', data.userId);
-    if (data.role === 'student') navigate('/studentdash');
-    else if (data.role === 'professor') navigate('/professordash');
-    else if (data.role === 'admin') navigate('/admindash');
+    localStorage.setItem('userId', data.data.user.idUsers);
+    const userRole = data.data.user.role;
+    if (userRole === 'student') navigate('/studentdash');
+    else if (userRole === 'professor') navigate('/professordash');
+    else if (userRole === 'admin') navigate('/admindash');
   } catch (err) {
     setError('Network or server error. Make sure mock server is running on port 3001.');
   }
