@@ -25,6 +25,7 @@
       "role": "professor"
     }
   ],
+  "signupRequests": [],
   "professors": [
     {
       "id": 3,

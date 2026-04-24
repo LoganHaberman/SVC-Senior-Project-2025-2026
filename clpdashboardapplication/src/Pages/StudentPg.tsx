@@ -3,12 +3,6 @@ import axios from 'axios';
 
 // This is what will be presented on this page.
 // Each of these items are retrieved from the mock database via API calls in server.js
-interface CLPSession {
-  sessionNumber: number;
-  date: string;
-  attendees: string[];
-}
-
 interface Class {
   id: number;
   title: string;
@@ -17,7 +11,7 @@ interface Class {
   semester: string;
   professorName: string;
   uniqueId: string;
-  sessions: CLPSession[];
+  attendance?: { studentId: number | string; studentName: string; count: number }[];
 }
 
 interface Professor {
@@ -48,7 +42,6 @@ function StudentPg() {
     const [status, setStatus] = useState<string>('Ready');
     const [classes, setClasses] = useState<Class[]>([]);
     const [selectedClassId, setSelectedClassId] = useState<string>('');
-    const [selectedSessionNumber, setSelectedSessionNumber] = useState<number | null>(null);
     const [students, setStudents] = useState<Student[]>([]);
     const [professors, setProfessors] = useState<any[]>([]);
     const [selectedProfId, setSelectedProfId] = useState<number | null>(null);
@@ -70,7 +63,11 @@ function StudentPg() {
 
     useEffect(() => {
     const loadClasses = async () => {
-        if (!selectedProfId) return;
+        if (!selectedProfId) {
+            setClasses([]);
+            setSelectedClassId('');
+            return;
+        }
 
         try {
             const res = await axios.get(`${API_BASE}/getProfClasses`, {
@@ -87,10 +84,11 @@ function StudentPg() {
                 semester: c.semester,
                 professorName: data.name,
                 uniqueId: `${selectedProfId}-${c.id}`,
-                sessions: c.sessions || []
+                attendance: c.attendance || []
             }));
 
             setClasses(formatted);
+            setSelectedClassId('');
         } catch {
             setStatus('Error loading classes');
         }
@@ -113,11 +111,6 @@ function StudentPg() {
         };
         loadStudents();
     }, []);
-
-    // Reset session when class changes
-    useEffect(() => {
-        setSelectedSessionNumber(null);
-    }, [selectedClassId]);
 
     // Handle card input from HID scanner
     const handleCardInput = async () => {
@@ -155,12 +148,12 @@ function StudentPg() {
 
         return id;
     };
-    // Save student attendance to CLP session
+    // Save student attendance for the selected class
     const saveAttendance = async (studentId: number) => {
         try {
             const selectedClass = classes.find(c => c.uniqueId === selectedClassId);
 
-            if (!selectedClass) {
+            if (!selectedClass || !selectedProfId) {
                 setStatus('Class not found');
                 return;
             }
@@ -168,7 +161,7 @@ function StudentPg() {
             const res = await axios.post(`${API_BASE}/attendance`, {
                 studentId,
                 classId: selectedClass.id,
-                sessionNumber: selectedSessionNumber
+                profId: selectedProfId
             });
 
             if (res.status !== 200) {
@@ -184,38 +177,7 @@ function StudentPg() {
         }
     };
 
-    const handleAddSession = async () => {
-        if (!selectedClass) {
-            setStatus("Select a class first");
-            return;
-        }
-
-        try {
-            const res = await axios.post(
-                `${API_BASE}/classes/${selectedClass.id}/sessions`
-            );
-
-            const newSession = res.data;
-
-            setClasses(prev =>
-                prev.map(cls =>
-                    cls.id === selectedClass.id
-                        ? {
-                            ...cls,
-                            sessions: [...cls.sessions, newSession]
-                        }
-                        : cls
-                )
-            );
-
-            setStatus(`Session ${newSession.sessionNumber} created`);
-        } catch (err) {
-            console.error(err);
-            setStatus("Error creating session");
-        }
-    };
-
-    const selectedClass = classes.find(c => c.uniqueId === selectedClassId);
+const selectedClass = classes.find(c => c.uniqueId === selectedClassId);
 
     return (
         <div style={{ padding: 20, fontFamily: 'Arial, sans-serif' }}>
@@ -254,41 +216,6 @@ function StudentPg() {
                 </select>
             </div>
 
-            {/* Session Selection */}
-            {selectedClass && (
-                <div style={{ marginBottom: 20 }}>
-                    <h2>Select Session</h2>
-                    <select 
-                        value={selectedSessionNumber || ''} 
-                        onChange={(e) => setSelectedSessionNumber(e.target.value ? parseInt(e.target.value) : null)}
-                        style={{ padding: 10, width: 300 }}
-                    >
-                        <option value="">-- Choose a session --</option>
-                        {selectedClass.sessions.map(session => (
-                            <option key={session.sessionNumber} value={session.sessionNumber}>
-                                Session {session.sessionNumber} - {session.date}
-                            </option>
-                        ))}
-                    </select>
-                </div>
-            )}
-            {selectedClass && (
-                <div style={{ marginBottom: 20 }}>
-                    <button
-                        onClick={handleAddSession}
-                        style={{
-                            padding: '8px 16px',
-                            backgroundColor: '#007bff',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: 4,
-                            cursor: 'pointer'
-                        }}
-                    >
-                        Add New Session
-                    </button>
-                </div>
-            )}
 
             {/* Card Scanning */}
             <div>
@@ -306,7 +233,7 @@ function StudentPg() {
                     placeholder="Swipe card or enter ID"
                     autoFocus
                     style={{ padding: 10, width: 300 }}
-                    disabled={!selectedClassId || !selectedSessionNumber}
+                    disabled={!selectedClassId}
                 />
             </div>
         </div>
