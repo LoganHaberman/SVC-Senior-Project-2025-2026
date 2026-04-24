@@ -28,7 +28,7 @@ interface Professor {
 }
 
 interface Student {
-  id: string;
+  studentID: number;
   name: string;
 }
 
@@ -64,8 +64,6 @@ function StudentPg() {
             setStatus('Error loading professors');
         }
     };
-
-    
 
     loadProfessors();
     }, []);
@@ -105,8 +103,11 @@ function StudentPg() {
     useEffect(() => {
         const loadStudents = async () => {
             try {
-                const res = await fetch(`${API_BASE}/students`);
-                const studentList: Student[] = await res.json();
+                console.log('Loading students from server...');
+                const res = await axios.get(`${API_BASE}/allStudents`);
+                console.log('Students from server:', res.data);
+                const studentList: Student[] = await res.data;
+                console.log('Formatted student list:', studentList);
                 setStudents(studentList);
             } catch (error) {
                 setStatus('Error loading students');
@@ -122,13 +123,17 @@ function StudentPg() {
 
     // Handle card input from HID scanner
     const handleCardInput = async () => {
+        console.log('Handle card input:', cardData);
         const data = cardData;
         const parsedId = parseStudentId(data);
+        console.log('Parsed student ID:', parsedId);
         if (parsedId) {
-            setCardData(parsedId);
-            const student = students.find(s => s.id === parsedId);
+            const setParsedId = String(parsedId);
+            setCardData(setParsedId);
+            console.log('Students list for ID matching:', students);
+            const student = students.find(s => s.studentID === parsedId);
             if (student) {
-                await saveAttendance(student.name);
+                await saveAttendance(Number(student.studentID));
             } else {
                 setStatus('Student ID not found');
             }   
@@ -139,46 +144,84 @@ function StudentPg() {
     };
 
     // Parse ID from card data (either Track 1 or direct ID)
-    const parseStudentId = (data: string): string | null => {
-        data = data.replace(/\D/g, '');
-        data = data.substring(0, 9);
-        if (/^000\d{6}$/.test(data)) {
-            return data;
+    const parseStudentId = (data: string): number | null => {
+        const digits = data.replace(/\D/g, '');
+        console.log('Data after removing non-digits:', digits);
+        if (!digits) {
+            console.warn('No digits found in card data');
+            return null;   
         }
-        return null;
-    };
+        
+        console.log('Digits extracted from card data:', digits);
+        const id = Number(digits);
 
-    // Save student attendance to CLP session
-    const saveAttendance = async (name: string) => {
-        if (!selectedClassId || !selectedSessionNumber) {
-            setStatus('Select class and session first');
-            return;
+        if (isNaN(id)) {
+            console.warn('Parsed ID is not a valid number:', id);
+            return null;        
         }
+        console.log('Parsed ID:', id);
+
+        return id;
+    };
+    // Save student attendance to CLP session
+    const saveAttendance = async (studentId: number) => {
+        console.log('Saving attendance for student ID:', studentId);
         try {
             const selectedClass = classes.find(c => c.uniqueId === selectedClassId);
+
             if (!selectedClass) {
                 setStatus('Class not found');
                 return;
             }
-            
-            const [profIdStr] = selectedClassId.split('-');
-            const profId = parseInt(profIdStr);
-            
-            const attendRes = await fetch(
-                `http://localhost:3001/api/professors/${profId}/classes/${selectedClass.id}/sessions/${selectedSessionNumber}/attend`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ studentName: name })
-                }
-            );
-            if (!attendRes.ok) {
-                throw new Error('Failed to save');
+
+            console.log('Saving attendance for student ID:', studentId);
+            const res = await axios.post(`${API_BASE}/attendance`, {
+                studentId,
+                classId: selectedClass.id,
+                sessionNumber: selectedSessionNumber
+            });
+
+            if (res.status !== 200) {
+                throw new Error('Failed to save attendance');
             }
-            setStatus(`${name} marked present!`);
+
+            setStatus(`Student marked present!`);
             setTimeout(() => setStatus('Ready'), 2000);
+
         } catch (error) {
+            console.error(error);
             setStatus('Error saving attendance');
+        }
+    };
+
+    const handleAddSession = async () => {
+        if (!selectedClass) {
+            setStatus("Select a class first");
+            return;
+        }
+
+        try {
+            const res = await axios.post(
+                `${API_BASE}/classes/${selectedClass.id}/sessions`
+            );
+
+            const newSession = res.data;
+
+            setClasses(prev =>
+                prev.map(cls =>
+                    cls.id === selectedClass.id
+                        ? {
+                            ...cls,
+                            sessions: [...cls.sessions, newSession]
+                        }
+                        : cls
+                )
+            );
+
+            setStatus(`Session ${newSession.sessionNumber} created`);
+        } catch (err) {
+            console.error(err);
+            setStatus("Error creating session");
         }
     };
 
@@ -237,6 +280,23 @@ function StudentPg() {
                             </option>
                         ))}
                     </select>
+                </div>
+            )}
+            {selectedClass && (
+                <div style={{ marginBottom: 20 }}>
+                    <button
+                        onClick={handleAddSession}
+                        style={{
+                            padding: '8px 16px',
+                            backgroundColor: '#007bff',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: 4,
+                            cursor: 'pointer'
+                        }}
+                    >
+                        Add New Session
+                    </button>
                 </div>
             )}
 
