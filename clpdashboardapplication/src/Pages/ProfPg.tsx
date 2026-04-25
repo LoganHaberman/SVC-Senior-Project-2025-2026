@@ -1,5 +1,7 @@
 import React, { useEffect, useState, FormEvent } from 'react'
 import axios from 'axios'
+import Papa from 'papaparse'
+import { data } from 'react-router-dom';
 
 type AttendanceRecord = {
     studentId: number | string;
@@ -75,58 +77,103 @@ function ProfPg() {
     };
 
     const handleAddClass = async (e: FormEvent) => {
-        e.preventDefault()
-        setError(null)
-        
+        e.preventDefault();
+        setError(null);
+
         if (!formData.title.trim() || !formData.clpDay) {
-            setError('Title and CLP day are required')
-            return
+            setError('Title and CLP day are required');
+            return;
         }
 
         if (!rosterFile) {
-            setError('Roster CSV is required for class creation')
-            return
+            setError('Roster CSV is required for class creation');
+            return;
         }
 
         try {
-            const data = new FormData()
-            data.append('title', formData.title.trim())
-            data.append('code', formData.code.trim() || '')
-            data.append('semester', formData.semester.trim() || '')
-            data.append('clpDay', formData.clpDay)
-            data.append('rosterFile', rosterFile)
+            //Start by making class
+            const resA = await axios.post(`${API_BASE}/addClass`, {
+                profId: profId,
+                title: formData.title.trim(),
+                code: formData.code.trim() || null,
+                semester: formData.semester.trim() || null,
+                clpDay: formData.clpDay
+            });
 
-            const res = await axios.post(`${API_BASE}/professors/${profId}/classes`, data, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            })
-
-            if (!res.data || !res.data.success) {
-                throw new Error(res.data?.message || 'Failed to add class')
+            if (!resA.data || !resA.data.success) {
+                throw new Error(resA.data?.message || 'Failed to add class');
             }
 
-            const newClass = res.data.class
-            setClasses(c => [...c, newClass])
-            setFormData({ title: '', code: '', semester: '', clpDay: '' })
-            setRosterFile(null)
-            setShowForm(false)
+            const classId = resA.data.class.id;
+
+            //Parse CSV
+            const students = await new Promise<any[]>((resolve, reject) => {
+                Papa.parse(rosterFile, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: (results) => {
+                        try {
+                            const cleanName = (name: string) =>
+                                name.replace(/^(Mr\.|Ms\.|Mrs\.)\s*/i, '').trim();
+
+                            const parsed = results.data
+                                .map((row: any) => ({
+                                    studentID: Number(row['Student ID']),
+                                    studentName: cleanName(
+                                        row['Student Name'] || row['Name'] || ''
+                                    ),
+                                    classID: classId
+                                }))
+                                .filter((s: any) => s.studentID && s.studentName);
+
+                            resolve(parsed);
+                        } catch (err) {
+                            reject(err);
+                        }
+                    },
+                    error: reject
+                });
+            });
+
+            console.log('Parsed students:', students);
+
+            //Sends roster to backend
+            console.log('Sending roster to backend:', students);
+            await axios.post(`${API_BASE}/admin/roster`, {
+                students
+            });
+
+            //Updates UI
+            setClasses(c => [...c, resA.data.class]);
+            setFormData({ title: '', code: '', semester: '', clpDay: '' });
+            setRosterFile(null);
+            setShowForm(false);
+
         } catch (err: any) {
-            setError(err.response?.data?.message || err.message || 'Error adding class')
+            console.error(err);
+            setError(err.response?.data?.message || err.message || 'Error adding class');
         }
-    }
+    };
 
     const handleDeleteClass = async (classId: number) => {
-        if (!window.confirm('Delete this class?')) return
-        setError(null)
-        
+        if (!window.confirm('Delete this class?')) return;
+
+        setError(null);
+
         try {
-            const res = await axios.delete(`${API_BASE}/professors/${profId}/classes/${classId}`)
-            if (!res.data || !res.data.success) throw new Error('Failed to delete class')
-            setClasses(c => c.filter(cls => cls.id !== classId))
-            setSelectedClassId(null)
+            const res = await axios.delete(`${API_BASE}/classes/${classId}`);
+
+            if (!res.data?.success) {
+                throw new Error(res.data?.message || 'Failed to delete class');
+            }
+
+            setClasses(c => c.filter(cls => cls.id !== classId));
+            setSelectedClassId(null);
+
         } catch (err: any) {
-            setError(err.response?.data?.message || err.message || 'Error deleting class')
+            setError(err.response?.data?.message || err.message || 'Error deleting class');
         }
-    }
+    };
 
     const selectedClass = classes.find(c => c.id === selectedClassId)
 

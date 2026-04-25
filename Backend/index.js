@@ -77,18 +77,31 @@ passport.use(samlStrategy);
 
 
 //Login
-app.get("/api/login", (req,res) => {
-  const username = req.query.username;
-  const password = req.query.password;
-  console.log("Login attempt with username:", username);
-    db.query("SELECT * FROM Users WHERE username = ? AND password = ?", [username.trim(), password.trim()], (err, result) => {
-        if (err) return res.json({error: err});
-        if (result.length > 0) {
-            res.json({message: "Login successful", user: result[0]});
-        } else {
-            res.json({error: "Invalid credentials"});
-        }
-    });
+app.post("/api/login", (req, res) => {
+  const { username, password } = req.body;
+
+  console.log("Login attempt:", username);
+
+  db.query(
+    "SELECT * FROM Users WHERE username = ? AND password = ?",
+    [username.trim(), password.trim()],
+    (err, result) => {
+      if (err) return res.status(500).json({ success: false, message: "DB error" });
+
+      if (result.length > 0) {
+        return res.json({
+          success: true,
+          userId: result[0].idUsers,
+          role: result[0].role
+        });
+      } else {
+        return res.json({
+          success: false,
+          message: "Invalid credentials"
+        });
+      }
+    }
+  );
 });
 
 //Admin Page Stuff
@@ -143,18 +156,58 @@ app.post("/api/addStudents", (req, res) => {
   });
 });
 
-app.post('/api/admin/roster', (req, res) => {
-  console.log("BODY:", req.body);
-  const students = req.body.students;
+app.post("/api/admin/roster", (req, res) => {
+  const { students } = req.body;
 
-  students.forEach(({ studentID, studentName }) => {
+  if (!students || !Array.isArray(students)) {
+    return res.status(400).json({ message: "Invalid student data" });
+  }
+
+  const insertStudentQuery = `
+    INSERT INTO Students (studentID, studentName)
+    VALUES (?, ?)
+    ON DUPLICATE KEY UPDATE studentName = VALUES(studentName)
+  `;
+
+  const insertRelationQuery = `
+    INSERT IGNORE INTO StudentClasses (studentID, classID)
+    VALUES (?, ?)
+  `;
+
+  let completed = 0;
+  let hasError = false;
+
+  students.forEach((s) => {
+    //Make sure student exists
     db.query(
-      "INSERT INTO Students (studentID, studentName) VALUES (?, ?) ON DUPLICATE KEY UPDATE studentName = VALUES(studentName)",
-      [studentID, studentName]
+      insertStudentQuery,
+      [s.studentID, s.studentName],
+      (err) => {
+        if (err && !hasError) {
+          hasError = true;
+          return res.status(500).json({ message: "Error inserting student", error: err });
+        }
+
+        //Link student to class
+        db.query(
+          insertRelationQuery,
+          [s.studentID, s.classID],
+          (err2) => {
+            if (err2 && !hasError) {
+              hasError = true;
+              return res.status(500).json({ message: "Error linking student to class", error: err2 });
+            }
+
+            completed++;
+
+            if (completed === students.length && !hasError) {
+              res.json({ success: true, message: "Roster uploaded successfully" });
+            }
+          }
+        );
+      }
     );
   });
-
-  res.json({ message: "Roster uploaded successfully" });
 });
 
 app.delete("/api/removeStudent", (req, res) => {
@@ -178,88 +231,112 @@ app.delete("/api/removeStudent", (req, res) => {
 app.get("/api/getProfClasses", (req, res) => {
   const userId = req.query.userId;
 
+  if (!userId) {
+    return res.status(400).json({ message: "Missing userId" });
+  }
+
+  //Get professor
   db.query(
-    `SELECT 
-      p.professorName,
-
-      c.classID,
-      c.title,
-      c.classCode,
-      c.semester,
-      c.clpDay,
-
-      s.sessionID,
-      s.sessionNumber,
-      s.sessionDate,
-
-      st.studentName
-
-    FROM Professors p
-    LEFT JOIN Sessions s ON p.professorID = s.professorID
-    LEFT JOIN Classes c ON s.classID = c.classID
-    LEFT JOIN Attendance a ON s.sessionID = a.sessionID
-    LEFT JOIN Students st ON a.studentID = st.studentID
-
-    WHERE p.userID = ?
-    ORDER BY c.classID, s.sessionNumber`,
+    "SELECT professorID, professorName FROM Professors WHERE userID = ?",
     [userId],
-    (err, rows) => {
-      if (err) {
-        console.error(err);
-        return res.status(500).json({ error: err });
+    (err, profResult) => {
+      if (err) return res.status(500).json({ error: err });
+
+      if (profResult.length === 0) {
+        return res.status(404).json({ message: "Professor not found" });
       }
 
-    if (rows.length ==0) {
-      return res.json({ name: "", classes: [] });
+      const professor = profResult[0];
+
+      //get classes
+      db.query(
+        `SELECT classID, title, classCode, semester, clpDay
+         FROM Classes
+         WHERE professorID = ?`,
+        [professor.professorID],
+        (err, classResults) => {
+          if (err) return res.status(500).json({ error: err });
+
+          if (classResults.length === 0) {
+            return res.json({
+              name: professor.professorName,
+              classes: []
+            });
+          }
+
+          const classIds = classResults.map(c => c.classID);
+
+          //get sessions
+          db.query(
+            `SELECT sessionID, sessionNumber, sessionDate, classID
+             FROM Sessions
+             WHERE classID IN (?)`,
+            [classIds],
+            (err, sessionResults) => {
+              if (err) return res.status(500).json({ error: err });
+
+              //get attendance counts
+              db.query(
+                `SELECT 
+                   sc.classID,
+                   s.studentID,
+                   st.studentName,
+                   COUNT(a.attendanceID) AS count
+                 FROM StudentClasses sc
+                 JOIN Students st ON sc.studentID = st.studentID
+                 LEFT JOIN Sessions sess ON sc.classID = sess.classID
+                 LEFT JOIN Attendance a 
+                   ON a.sessionID = sess.sessionID 
+                   AND a.studentID = sc.studentID
+                 JOIN Students s ON s.studentID = sc.studentID
+                 WHERE sc.classID IN (?)
+                 GROUP BY sc.classID, s.studentID`,
+                [classIds],
+                (err, attendanceResults) => {
+                  if (err) return res.status(500).json({ error: err });
+
+                  //get resonse
+                  const classes = classResults.map(c => {
+                    const sessions = sessionResults
+                      .filter(s => s.classID === c.classID)
+                      .map(s => ({
+                        sessionNumber: s.sessionNumber,
+                        date: s.sessionDate,
+                        attendees: [] // optional for now
+                      }));
+
+                    const attendance = attendanceResults
+                      .filter(a => a.classID === c.classID)
+                      .map(a => ({
+                        studentId: a.studentID,
+                        studentName: a.studentName,
+                        count: a.count
+                      }));
+
+                    return {
+                      id: c.classID,
+                      title: c.title,
+                      code: c.classCode,
+                      semester: c.semester,
+                      clpDay: c.clpDay,
+                      sessions,
+                      attendance
+                    };
+                  });
+
+                  res.json({
+                    name: professor.professorName,
+                    classes
+                  });
+                }
+              );
+            }
+          );
+        }
+      );
     }
-
-    const professorName = rows[0].professorName;
-    const classesMap = {};
-
-    rows.forEach(row => {
-      if (!row.classID) return;
-
-      if (!classesMap[row.classID]) {
-        classesMap[row.classID] = {
-          id: row.classID,
-          title: row.title,
-          code: row.classCode,
-          semester: row.semester,
-          clpDay: row.clpDay,
-          sessions: {}
-        };
-      }
-
-      const cls = classesMap[row.classID];
-
-      if (row.sessionID) {
-        if (!cls.sessions[row.sessionID]) {
-          cls.sessions[row.sessionID] = {
-            sessionNumber: row.sessionNumber,
-            date: row.sessionDate,
-            attendees: []
-          };
-        }
-
-        if (row.studentName) {
-          cls.sessions[row.sessionID].attendees.push(row.studentName);
-        }
-      }
-    });
-
-    // Convert maps → arrays
-    const classes = Object.values(classesMap).map(cls => ({
-      ...cls,
-      sessions: Object.values(cls.sessions)
-    }));
-
-    res.json({
-      name: professorName,
-      classes
-    });
-  });
+  );
 });
-
 
 app.post("/api/addClass", (req, res) => {
   const userId = req.body.profId;
@@ -283,21 +360,25 @@ app.post("/api/addClass", (req, res) => {
       const professorID = profResult[0].professorID;
 
       db.query(
-        `INSERT INTO Classes (title, classCode, semester, clpDay)
-         VALUES (?, ?, ?, ?)`,
-        [title, code || null, semester || null, clpDay],
+        `INSERT INTO Classes (title, classCode, semester, clpDay, professorID)
+         VALUES (?, ?, ?, ?, ?)`,
+        [title, code || null, semester || null, clpDay, professorID],
         (err, classResult) => {
           if (err) return res.status(500).json({ error: err });
 
           const classID = classResult.insertId;
 
           res.json({
-            id: classID,
-            title,
-            code,
-            semester,
-            clpDay,
-            sessions: []
+            success: true,
+            class: {
+              id: classID,
+              title,
+              code,
+              semester,
+              clpDay,
+              professorID,
+              sessions: []
+            }
           });
         }
       );
@@ -305,18 +386,21 @@ app.post("/api/addClass", (req, res) => {
   );
 });
 
-app.delete("/api/deleteClass", (req, res) => {
-  const { classId } = req.body;
+app.delete("/api/classes/:classId", (req, res) => {
+  const classId = req.params.classId;
 
-  db.query("DELETE FROM Classes WHERE classID = ?", [classId], (err, result) => {
-    if (err) return res.status(500).json({ error: err });
+  db.query(
+    "DELETE FROM Classes WHERE classID = ?",
+    [classId],
+    (err, result) => {
+      if (err) {
+        console.error(err);
+        return res.status(500).json({ success: false, message: "Delete failed" });
+      }
 
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: "Class not found" });
+      res.json({ success: true });
     }
-
-    res.json({ message: "Class deleted successfully" });
-  });
+  );
 });
 
 //StudentFacilitator Page Stuff
@@ -337,35 +421,63 @@ app.get("/api/allStudents", (req, res) => {
   });
 });
 
+
 app.post("/api/attendance", (req, res) => {
   console.log("ATTENDANCE HIT:", req.body);
   const studentId = parseInt(req.body.studentId, 10);
-  const classId = req.body.classId;
-  const sessionNumber = req.body.sessionNumber;
+  const classId = parseInt(req.body.classId, 10);
+  const sessionNumber = parseInt(req.body.sessionNumber, 10);
+  const professorID = parseInt(req.body.professorID, 10); 
 
-  if (!studentId || !classId || !sessionNumber) {
+  if (!studentId || !classId || !sessionNumber || !professorID) {
     return res.status(400).json({ error: "Missing fields" });
   }
 
+  //check session exists
   db.query(
-    `SELECT sessionID FROM Sessions WHERE classID = ? AND sessionNumber = ?`,
+    `SELECT sessionID FROM Sessions 
+     WHERE classID = ? AND sessionNumber = ?`,
     [classId, sessionNumber],
     (err, sessionResult) => {
       if (err) return res.status(500).json(err);
 
-      if (sessionResult.length === 0) {
-        return res.status(404).json({ error: "Session not found" });
+      const createAttendance = (sessionID) => {
+        db.query(
+          `INSERT INTO Attendance (sessionID, studentID)
+           VALUES (?, ?)`,
+          [sessionID, studentId],
+          (err2) => {
+            if (err2) {
+              if (err2.code == 'ER_DUP_ENTRY') {
+                return res.json({
+                  success: true,
+                  duplicate: true,
+                  message: "Student already marked present"
+                });
+              }
+              return res.status(500).json(err2);
+            }
+            return res.json({ success: true });
+          }
+        );
+      };
+
+      //if session exists, add attendance
+      if (sessionResult.length > 0) {
+        return createAttendance(sessionResult[0].sessionID);
       }
 
-      const sessionID = sessionResult[0].sessionID;
+      //otherwise create session then add attendance
+      const sessionDate = new Date().toISOString().slice(0,10); //YYYY-MM-DD
 
       db.query(
-        `INSERT INTO Attendance (sessionID, studentID) VALUES (?, ?)`,
-        [sessionID, studentId],
-        (err) => {
-          if (err) return res.status(500).json(err);
+        `INSERT INTO Sessions (sessionNumber, sessionDate, classID, professorID)
+         VALUES (?, ?, ?, ?)`,
+        [sessionNumber, sessionDate, classId, professorID],
+        (err3, insertResult) => {
+          if (err3) return res.status(500).json(err3);
 
-          res.json({ success: true });
+            return createAttendance(insertResult.insertId);
         }
       );
     }
@@ -379,32 +491,78 @@ app.post("/api/classes/:classId/sessions", (req, res) => {
     return res.status(400).json({ error: "Invalid class ID" });
   }
 
-  // Get next session number
   db.query(
     `SELECT MAX(sessionNumber) AS maxSession FROM Sessions WHERE classID = ?`,
     [classId],
     (err, result) => {
-      if (err) return res.status(500).json(err);
+      if (err) {
+        console.error("MAX SESSION ERROR:", err);
+        return res.status(500).json({ error: err.message });
+      }
 
       const nextSessionNumber = (result[0].maxSession || 0) + 1;
 
-      const sessionDate = new Date(); // or pass from frontend
+      const sessionDate = new Date().toISOString().slice(0, 10);
 
       db.query(
         `INSERT INTO Sessions (sessionNumber, sessionDate, classID)
          VALUES (?, ?, ?)`,
         [nextSessionNumber, sessionDate, classId],
         (err, insertResult) => {
-          if (err) return res.status(500).json(err);
+          if (err) {
+            console.error("INSERT SESSION ERROR:", err);
+            return res.status(500).json({ error: err.message });
+          }
 
-          res.json({
+          return res.json({
             sessionID: insertResult.insertId,
             sessionNumber: nextSessionNumber,
-            date: sessionDate.toISOString().split("T")[0],
+            date: sessionDate,
             attendees: []
           });
         }
       );
+    }
+  );
+});
+
+app.get("/api/classes/:classId/sessions", (req, res) => {
+  const classId = parseInt(req.params.classId, 10);
+  const professorID = req.query.professorID;
+
+  db.query(
+    `SELECT * FROM Sessions WHERE classID = ? ORDER BY sessionNumber`,
+    [classId],
+    (err, sessions) => {
+      if (err) return res.status(500).json(err);
+
+      if (sessions.length === 0) {
+        // auto-create session 1
+        const now = new Date();
+
+        db.query(
+          `INSERT INTO Sessions (sessionNumber, sessionDate, classID, professorID)
+           VALUES (1, ?, ?, ?)`,
+          [now, classId, professorID],
+          (err2, insertResult) => {
+            if (err2) return res.status(500).json(err2);
+
+            return res.json([{
+              sessionID: insertResult.insertId,
+              sessionNumber: 1,
+              date: now.toISOString().split("T")[0]
+            }]);
+          }
+        );
+      } else {
+        res.json(
+          sessions.map(s => ({
+            sessionID: s.sessionID,
+            sessionNumber: s.sessionNumber,
+            date: new Date(s.sessionDate).toISOString().split("T")[0]
+          }))
+        );
+      }
     }
   );
 });
