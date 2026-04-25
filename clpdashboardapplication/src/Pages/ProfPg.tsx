@@ -1,4 +1,4 @@
-import React, { useEffect, useState, FormEvent } from 'react'
+import React, { useCallback, useEffect, useState, FormEvent } from 'react'
 import axios from 'axios'
 
 type AttendanceRecord = {
@@ -13,7 +13,7 @@ type Class = {
     code?: string
     semester?: string
     section?: number
-    clpDay?: string
+    students?: { id: string; name: string }[]
     attendance?: AttendanceRecord[]
 }
 
@@ -28,58 +28,42 @@ function ProfPg() {
     const [showForm, setShowForm] = useState(false)
     const [selectedClassId, setSelectedClassId] = useState<number | null>(null)
     const [rosterFile, setRosterFile] = useState<File | null>(null)
-    const [formData, setFormData] = useState({ title: '', code: '', semester: '', clpDay: '' })
+    const [reuploadFile, setReuploadFile] = useState<File | null>(null)
+    const [reuploading, setReuploading] = useState(false)
+    const [formData, setFormData] = useState({ title: '', code: '', semester: '' })
+    const isValidSemesterFormat = (value: string) => /^\d{4},\s*(Fall|Spring)$/i.test(value.trim())
+
+    const loadProfessorClasses = useCallback(async () => {
+        setLoading(true)
+        try {
+            const res = await axios.get(`${API_BASE}/getProfClasses`, {
+                params: { userId: profId }
+            })
+            if (!res.data) throw new Error('Failed to load professor')
+            const data = await res.data
+            setProfName(data.name || '')
+            setClasses(data.classes || [])
+        } catch (err: any) {
+            setError(err.message || 'Error loading data')
+        } finally {
+            setLoading(false)
+        }
+    }, [API_BASE, profId])
 
     useEffect(() => {
-        async function load() {
-            setLoading(true)
-            try {
-                const res = await axios.get(`${API_BASE}/getProfClasses`, {
-                    params: { userId: profId }
-                })
-                if (!res.data) throw new Error('Failed to load professor')
-                const data = await res.data
-                setProfName(data.name || '')
-                setClasses(data.classes || [])
-            } catch (err: any) {
-                setError(err.message || 'Error loading data')
-            } finally {
-                setLoading(false)
-            }
-        }
-        load()
-    }, [])
-
-    const getNextDate = (weekdayName: string) => {
-        const days: Record<string, number> = {
-            Monday: 1,
-            Tuesday: 2,
-            Wednesday: 3,
-            Thursday: 4,
-            Friday: 5,
-        };
-
-        const targetDay = days[weekdayName];
-        if (targetDay === undefined) return null;
-
-        const today = new Date();
-        const currentDay = today.getDay();
-
-        let daysUntil = (targetDay - currentDay + 7) % 7;
-        if (daysUntil === 0) daysUntil = 7; // always NEXT occurrence
-
-        const result = new Date(today);
-        result.setDate(today.getDate() + daysUntil);
-
-        return result.toLocaleDateString('en-CA'); // YYYY-MM-DD (local)
-    };
+        loadProfessorClasses()
+    }, [loadProfessorClasses])
 
     const handleAddClass = async (e: FormEvent) => {
         e.preventDefault()
         setError(null)
         
-        if (!formData.title.trim() || !formData.clpDay) {
-            setError('Title and CLP day are required')
+        if (!formData.title.trim()) {
+            setError('Title is required')
+            return
+        }
+        if (!isValidSemesterFormat(formData.semester)) {
+            setError('Semester must be in format: YYYY, Fall or YYYY, Spring')
             return
         }
 
@@ -93,7 +77,6 @@ function ProfPg() {
             data.append('title', formData.title.trim())
             data.append('code', formData.code.trim() || '')
             data.append('semester', formData.semester.trim() || '')
-            data.append('clpDay', formData.clpDay)
             data.append('rosterFile', rosterFile)
 
             const res = await axios.post(`${API_BASE}/professors/${profId}/classes`, data, {
@@ -104,9 +87,8 @@ function ProfPg() {
                 throw new Error(res.data?.message || 'Failed to add class')
             }
 
-            const newClass = res.data.class
-            setClasses(c => [...c, newClass])
-            setFormData({ title: '', code: '', semester: '', clpDay: '' })
+            await loadProfessorClasses()
+            setFormData({ title: '', code: '', semester: '' })
             setRosterFile(null)
             setShowForm(false)
         } catch (err: any) {
@@ -128,16 +110,59 @@ function ProfPg() {
         }
     }
 
+    const handleReuploadRoster = async () => {
+        if (!selectedClass) {
+            setError('Select a class first')
+            return
+        }
+        if (!reuploadFile) {
+            setError('Choose a roster CSV to reupload')
+            return
+        }
+
+        setError(null)
+        setReuploading(true)
+        try {
+            const data = new FormData()
+            data.append('rosterFile', reuploadFile)
+            const res = await axios.post(
+                `${API_BASE}/professors/${profId}/classes/${selectedClass.id}/roster`,
+                data,
+                { headers: { 'Content-Type': 'multipart/form-data' } }
+            )
+
+            if (!res.data?.success) {
+                throw new Error(res.data?.message || 'Failed to reupload roster')
+            }
+
+            await loadProfessorClasses()
+            setReuploadFile(null)
+        } catch (err: any) {
+            setError(err.response?.data?.message || err.message || 'Error reuploading roster')
+        } finally {
+            setReuploading(false)
+        }
+    }
+
     const selectedClass = classes.find(c => c.id === selectedClassId)
 
     return (
-        <div style={{ padding: 20, fontFamily: 'Arial, sans-serif' }}>
-            <h1>CLP Dashboard</h1>
+        <div style={{ fontFamily: 'Arial, sans-serif' }}>
+            <div style={{ width: '100%', marginBottom: 20 }}>
+                <div style={{ backgroundColor: '#0b5d3b', color: 'white', padding: '12px 20px', fontWeight: 700 }}>
+                    <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>Collaborative Learning Program</span>
+                        <span style={{ fontWeight: 600, opacity: 0.95 }}>Professor Dashboard</span>
+                    </div>
+                </div>
+                <div style={{ backgroundColor: '#c9a227', height: 8 }} />
+            </div>
+            <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 20px 20px 20px' }}>
             {loading ? <p>Loading...</p> : (
                 <>
                     <h2>{profName || 'Professor'}</h2>
                     
-                    <div style={{ display: 'flex', gap: 20 }}>
+                    <div style={{ display: 'flex', gap: 20, justifyContent: 'center', alignItems: 'flex-start' }}>
                         <div style={{ flex: 1, maxWidth: 350 }}>
                             <h3>Classes</h3>
                             {classes.length === 0 ? (
@@ -162,8 +187,6 @@ function ProfPg() {
                                         >
                                             <div>
                                                 <strong>{cls.title}</strong> {cls.code && `(${cls.code})`}
-                                                <br />
-                                                <small style={{ color: '#666' }}>{cls.clpDay}</small>
                                             </div>
                                             <button 
                                                 onClick={(e) => { e.stopPropagation(); handleDeleteClass(cls.id); }}
@@ -180,26 +203,32 @@ function ProfPg() {
                                 <form onSubmit={handleAddClass} style={{ marginTop: 15, padding: 12, border: '1px solid #ccc', borderRadius: 4 }}>
                                     <div style={{ marginBottom: 10 }}>
                                         <label>Title:</label>
-                                        <input type="text" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} style={{ width: '100%', padding: 6 }} />
+                                        <input
+                                            type="text"
+                                            value={formData.title}
+                                            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                                            style={{ width: '100%', padding: 6, boxSizing: 'border-box' }}
+                                        />
                                     </div>
                                     <div style={{ marginBottom: 10 }}>
                                         <label>Code:</label>
-                                        <input type="text" value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value })} style={{ width: '100%', padding: 6 }} />
+                                        <input
+                                            type="text"
+                                            value={formData.code}
+                                            onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                                            style={{ width: '100%', padding: 6, boxSizing: 'border-box' }}
+                                        />
                                     </div>
                                     <div style={{ marginBottom: 10 }}>
                                         <label>Semester:</label>
-                                        <input type="text" value={formData.semester} onChange={(e) => setFormData({ ...formData, semester: e.target.value })} style={{ width: '100%', padding: 6 }} />
-                                    </div>
-                                    <div style={{ marginBottom: 10 }}>
-                                        <label>CLP Day:</label>
-                                        <select value={formData.clpDay} onChange={(e) => setFormData({ ...formData, clpDay: e.target.value })} style={{ width: '100%', padding: 6 }}>
-                                            <option value="">Select day</option>
-                                            <option value="Monday">Monday</option>
-                                            <option value="Tuesday">Tuesday</option>
-                                            <option value="Wednesday">Wednesday</option>
-                                            <option value="Thursday">Thursday</option>
-                                            <option value="Friday">Friday</option>
-                                        </select>
+                                        <input
+                                            type="text"
+                                            value={formData.semester}
+                                            onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
+                                            placeholder="e.g. 2026, Fall"
+                                            style={{ width: '100%', padding: 6, boxSizing: 'border-box' }}
+                                        />
+                                        <small style={{ color: '#666' }}>Format: YYYY, Fall or YYYY, Spring</small>
                                     </div>
                                     <div style={{ marginBottom: 10 }}>
                                         <label>Roster CSV (required):</label>
@@ -207,7 +236,7 @@ function ProfPg() {
                                             type="file"
                                             accept=".csv"
                                             onChange={(e) => setRosterFile(e.target.files?.[0] || null)}
-                                            style={{ width: '100%', padding: 6 }}
+                                            style={{ width: '100%', padding: 6, boxSizing: 'border-box' }}
                                         />
                                         <small style={{ color: '#666' }}>Roster upload is required to create the class and populate student attendance records.</small>
                                     </div>
@@ -226,6 +255,36 @@ function ProfPg() {
                                 <>
                                     <h3>{selectedClass.title}</h3>
                                     <p><strong>Code:</strong> {selectedClass.code} | <strong>Semester:</strong> {selectedClass.semester}</p>
+                                    <div style={{ marginBottom: 16, padding: 12, backgroundColor: '#f8f9fa', border: '1px solid #ddd', borderRadius: 4 }}>
+                                        <h4 style={{ marginTop: 0 }}>Reupload Class Roster</h4>
+                                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                                            <input
+                                                type="file"
+                                                accept=".csv"
+                                                onChange={(e) => setReuploadFile(e.target.files?.[0] || null)}
+                                                style={{ padding: 6 }}
+                                            />
+                                            {reuploadFile && (
+                                                <button
+                                                    onClick={handleReuploadRoster}
+                                                    disabled={reuploading}
+                                                    style={{
+                                                        padding: '8px 12px',
+                                                        backgroundColor: reuploading ? '#6c757d' : '#007bff',
+                                                        color: 'white',
+                                                        border: 'none',
+                                                        borderRadius: 4,
+                                                        cursor: reuploading ? 'not-allowed' : 'pointer'
+                                                    }}
+                                                >
+                                                    {reuploading ? 'Uploading...' : 'Reupload Roster'}
+                                                </button>
+                                            )}
+                                        </div>
+                                        <small style={{ color: '#666' }}>
+                                            Reuploading replaces this class roster and keeps attendance counts for matching student IDs.
+                                        </small>
+                                    </div>
                                     
                                     <h4>Attendance Summary</h4>
                                     {selectedClass.attendance && selectedClass.attendance.length > 0 ? (
@@ -250,12 +309,13 @@ function ProfPg() {
                                     )}
                                 </>
                             ) : (
-                                <p>Select a class to view sessions</p>
+                                <p>Select a class to view attendance</p>
                             )}
                         </div>
                     </div>
                 </>
             )}
+        </div>
         </div>
     )
 }

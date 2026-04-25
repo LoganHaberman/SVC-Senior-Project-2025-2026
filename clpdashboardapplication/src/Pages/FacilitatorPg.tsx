@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import axios from 'axios';
 
-// This is what will be presented on this page.
-// Each of these items are retrieved from the mock database via API calls in server.js
 interface Class {
   id: number;
   title: string;
@@ -11,42 +9,29 @@ interface Class {
   semester: string;
   professorName: string;
   uniqueId: string;
+  students?: { id: string; name: string }[];
   attendance?: { studentId: number | string; studentName: string; count: number }[];
 }
 
-interface Professor {
-  id: number;
-  name: string;
-  userId: number;
-  classes: Class[];
-}
-
-interface Student {
-  studentID: number;
-  name: string;
-}
-
-/**
- * By Grant Harsch
- * Desc: Student dashboard page.
- * This page presents the student with the ability to register a student as being present in a CLP session.
- * They must pick the class and CLP session they are recording and then scan the attendees card or enter it manually.
- * Scanning is merrily for ease of use and is not needed. To enter student IDs manually type it in the text box
- * and press enter. 
- */
-
-function StudentPg() {
+function FacilitatorPg() {
     const API_BASE = '/api'
+    const normalizeStudentId = (raw: string): string | null => {
+        const digits = String(raw ?? '').replace(/\D/g, '')
+        if (!digits) return null
+        const withoutLeadingZeros = digits.replace(/^0+/, '')
+        if (!withoutLeadingZeros) return null
+        return withoutLeadingZeros.length > 6
+            ? withoutLeadingZeros.slice(-6)
+            : withoutLeadingZeros
+    }
 
     const [cardData, setCardData] = useState<string>('');
     const [status, setStatus] = useState<string>('Ready');
     const [classes, setClasses] = useState<Class[]>([]);
     const [selectedClassId, setSelectedClassId] = useState<string>('');
-    const [students, setStudents] = useState<Student[]>([]);
     const [professors, setProfessors] = useState<any[]>([]);
     const [selectedProfId, setSelectedProfId] = useState<number | null>(null);
 
-    // Fetch classes from backend
     useEffect(() => {
     const loadProfessors = async () => {
         try {
@@ -84,6 +69,7 @@ function StudentPg() {
                 semester: c.semester,
                 professorName: data.name,
                 uniqueId: `${selectedProfId}-${c.id}`,
+                students: c.students || [],
                 attendance: c.attendance || []
             }));
 
@@ -97,59 +83,44 @@ function StudentPg() {
     loadClasses();
     }, [selectedProfId]);
 
-    // Load students from database API
-    useEffect(() => {
-        const loadStudents = async () => {
-            try {
-                console.log('Loading students from server...');
-                const res = await axios.get(`${API_BASE}/allStudents`);
-                const studentList: Student[] = await res.data;
-                setStudents(studentList);
-            } catch (error) {
-                setStatus('Error loading students');
-            }
-        };
-        loadStudents();
-    }, []);
-
-    // Handle card input from HID scanner
     const handleCardInput = async () => {
+        const selectedClass = classes.find(c => c.uniqueId === selectedClassId);
+        if (!selectedClass) {
+            setStatus('Please select a class first');
+            return;
+        }
+
         const data = cardData;
         const parsedId = parseStudentId(data);
         if (parsedId) {
-            const setParsedId = String(parsedId);
-            setCardData(setParsedId);
-            const student = students.find(s => s.studentID === parsedId);
-            if (student) {
-                await saveAttendance(Number(student.studentID));
-            } else {
-                setStatus('Student ID not found');
-            }   
+            setCardData(parsedId);
+
+            const inRoster = (selectedClass.students || []).some(
+                (student) => normalizeStudentId(String(student.id)) === parsedId
+            );
+            if (!inRoster) {
+                setStatus('Student is not on this class roster');
+                setTimeout(() => setStatus('Ready'), 2000);
+                return;
+            }
+
+            await saveAttendance(parsedId);
             setTimeout(() => setCardData(''), 1000);
         } else {
             setCardData('');
         }
     };
 
-    // Parse ID from card data (either Track 1 or direct ID)
-    const parseStudentId = (data: string): number | null => {
-        const digits = data.replace(/\D/g, '');
-        if (!digits) {
-            console.warn('No digits found in card data');
-            return null;   
+    const parseStudentId = (data: string): string | null => {
+        const normalized = normalizeStudentId(data)
+        if (!normalized) {
+            console.warn('No valid student id found in card data');
+            return null
         }
-        
-        const id = Number(digits);
-
-        if (isNaN(id)) {
-            console.warn('Parsed ID is not a valid number:', id);
-            return null;        
-        }
-
-        return id;
+        return normalized
     };
-    // Save student attendance for the selected class
-    const saveAttendance = async (studentId: number) => {
+
+    const saveAttendance = async (studentId: string) => {
         try {
             const selectedClass = classes.find(c => c.uniqueId === selectedClassId);
 
@@ -177,13 +148,19 @@ function StudentPg() {
         }
     };
 
-const selectedClass = classes.find(c => c.uniqueId === selectedClassId);
-
     return (
-        <div style={{ padding: 20, fontFamily: 'Arial, sans-serif' }}>
-            <h1>Student CLP Dashboard</h1>
-            {/* Professor Selection */}
-            <div style={{ marginBottom: 20 }}>
+        <div style={{ fontFamily: 'Arial, sans-serif' }}>
+            <div style={{ width: '100%', marginBottom: 20 }}>
+                <div style={{ backgroundColor: '#0b5d3b', color: 'white', padding: '12px 20px', fontWeight: 700 }}>
+                    <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>Collaborative Learning Program</span>
+                        <span style={{ fontWeight: 600, opacity: 0.95 }}>Facilitator Dashboard</span>
+                    </div>
+                </div>
+                <div style={{ backgroundColor: '#c9a227', height: 8 }} />
+            </div>
+            <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 20px 20px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ marginBottom: 20, width: '100%', maxWidth: 500 }}>
                 <h2>Select Professor</h2>
                 <select 
                     value={selectedProfId || ''} 
@@ -199,8 +176,7 @@ const selectedClass = classes.find(c => c.uniqueId === selectedClassId);
                 </select>
             </div>
 
-            {/* Class Selection */}
-            <div style={{ marginBottom: 20 }}>
+            <div style={{ marginBottom: 20, width: '100%', maxWidth: 500 }}>
                 <h2>Select Class</h2>
                 <select 
                     value={selectedClassId} 
@@ -216,9 +192,7 @@ const selectedClass = classes.find(c => c.uniqueId === selectedClassId);
                 </select>
             </div>
 
-
-            {/* Card Scanning */}
-            <div>
+            <div style={{ width: '100%', maxWidth: 500 }}>
                 <h2>Scan Card</h2>
                 <p>Status: {status}</p>
                 <input
@@ -237,7 +211,8 @@ const selectedClass = classes.find(c => c.uniqueId === selectedClassId);
                 />
             </div>
         </div>
+        </div>
     )
 }
 
-export default StudentPg
+export default FacilitatorPg
