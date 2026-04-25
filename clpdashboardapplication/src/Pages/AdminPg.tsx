@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
 import axios from 'axios'
@@ -27,7 +27,7 @@ interface Professor {
 }
 
 function AdminPg() {
-  const API_BASE = 'http://localhost:3001/api'
+  const API_BASE = '/api'
   const [classes, setClasses] = useState<ClassRecord[]>([])
   const [selectedClassId, setSelectedClassId] = useState<string>('')
   const [loading, setLoading] = useState(true)

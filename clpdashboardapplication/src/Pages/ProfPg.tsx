@@ -18,7 +18,7 @@ type Class = {
 }
 
 function ProfPg() {
-    const API_BASE = 'http://localhost:3001/api'
+    const API_BASE = '/api'
     const profId = parseInt(localStorage.getItem('userId') || '3', 10)
 
     const [profName, setProfName] = useState<string>('')
