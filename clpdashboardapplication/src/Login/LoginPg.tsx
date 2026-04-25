@@ -8,7 +8,7 @@ import axios from 'axios';
  */
 const LoginPg: React.FC = () => {
 
-  const API_BASE = '/api';
+  const API_BASE = 'http://localhost:3001/api';
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');

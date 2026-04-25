@@ -28,7 +28,7 @@ interface Student {
 
 /**
  * By Grant Harsch
- * Desc: Student dashboard page.
+ * Description: Student dashboard page.
  * This page presents the student with the ability to register a student as being present in a CLP session.
  * They must pick the class and CLP session they are recording and then scan the attendees card or enter it manually.
  * Scanning is merrily for ease of use and is not needed. To enter student IDs manually type it in the text box
@@ -36,13 +36,12 @@ interface Student {
  */
 
 function StudentPg() {
-    const API_BASE = '/api'
+    const API_BASE = 'http://localhost:3001/api'
 
     const [cardData, setCardData] = useState<string>('');
     const [status, setStatus] = useState<string>('Ready');
     const [classes, setClasses] = useState<Class[]>([]);
     const [selectedClassId, setSelectedClassId] = useState<string>('');
-    const [students, setStudents] = useState<Student[]>([]);
     const [professors, setProfessors] = useState<any[]>([]);
     const [selectedProfId, setSelectedProfId] = useState<number | null>(null);
 
@@ -97,33 +96,26 @@ function StudentPg() {
     loadClasses();
     }, [selectedProfId]);
 
-    // Load students from database API
-    useEffect(() => {
-        const loadStudents = async () => {
-            try {
-                console.log('Loading students from server...');
-                const res = await axios.get(`${API_BASE}/allStudents`);
-                const studentList: Student[] = await res.data;
-                setStudents(studentList);
-            } catch (error) {
-                setStatus('Error loading students');
-            }
-        };
-        loadStudents();
-    }, []);
-
     // Handle card input from HID scanner
     const handleCardInput = async () => {
         const data = cardData;
         const parsedId = parseStudentId(data);
         if (parsedId) {
-            const setParsedId = String(parsedId);
-            setCardData(setParsedId);
-            const student = students.find(s => s.studentID === parsedId);
+            setCardData(parsedId);
+            
+            // Get the selected class's roster
+            const selectedClass = classes.find(c => c.uniqueId === selectedClassId);
+            if (!selectedClass || !selectedClass.attendance) {
+                setStatus('No roster loaded for this class');
+                return;
+            }
+            
+            // Find student in the class roster using student ID
+            const student = selectedClass.attendance.find(s => String(s.studentId) === parsedId);
             if (student) {
-                await saveAttendance(Number(student.studentID));
+                await saveAttendance(parsedId);
             } else {
-                setStatus('Student ID not found');
+                setStatus(`Student ID ${parsedId} not in roster`);
             }   
             setTimeout(() => setCardData(''), 1000);
         } else {
@@ -132,24 +124,19 @@ function StudentPg() {
     };
 
     // Parse ID from card data (either Track 1 or direct ID)
-    const parseStudentId = (data: string): number | null => {
+    const parseStudentId = (data: string): string | null => {
         const digits = data.replace(/\D/g, '');
         if (!digits) {
             console.warn('No digits found in card data');
             return null;   
         }
         
-        const id = Number(digits);
-
-        if (isNaN(id)) {
-            console.warn('Parsed ID is not a valid number:', id);
-            return null;        
-        }
-
-        return id;
+        // Sanitize to 000xxxxxx format
+        const sanitizedId = digits.padStart(9, '0');
+        return sanitizedId;
     };
     // Save student attendance for the selected class
-    const saveAttendance = async (studentId: number) => {
+    const saveAttendance = async (studentId: string) => {
         try {
             const selectedClass = classes.find(c => c.uniqueId === selectedClassId);
 

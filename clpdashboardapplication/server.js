@@ -20,6 +20,13 @@ server.use(jsonServer.bodyParser);
 const upload = multer({ dest: 'uploads/' });
 
 // Helpers
+const sanitizeStudentId = (id) => {
+  // Extract only digits from the ID
+  const digitsOnly = String(id).replace(/\D/g, '');
+  // Pad with leading zeros to make it 9 digits total (000xxxxxx format)
+  return digitsOnly.padStart(9, '0');
+};
+
 const getNextId = (collectionName) => {
   const items = router.db.get(collectionName).value() || [];
   return items.reduce((maxId, item) => {
@@ -54,8 +61,8 @@ const findProfessor = (db, professorId) => {
 };
 
 const findStudentById = (db, studentId) => {
-  const stringId = String(studentId);
-  return db.get('students').find((s) => String(s.id) === stringId || Number(s.id) === Number(studentId)).value();
+  const sanitizedId = sanitizeStudentId(studentId);
+  return db.get('students').find((s) => sanitizeStudentId(s.id) === sanitizedId).value();
 };
 
 // Login endpoint
@@ -178,7 +185,7 @@ server.get('/api/getProfClasses', (req, res) => {
 
 server.get('/api/allStudents', (req, res) => {
   const students = router.db.get('students').value() || [];
-  res.json(students.map((s) => ({ studentID: Number(s.id), name: s.name })));
+  res.json(students.map((s) => ({ studentID: s.id, name: s.name })));
 });
 
 server.post('/api/attendance', (req, res) => {
@@ -197,14 +204,16 @@ server.post('/api/attendance', (req, res) => {
 
   const student = findStudentById(db, studentId);
   const studentName = student?.name || String(studentId);
-  const studentKey = student ? String(student.id) : studentName;
+  const sanitizedStudentId = student ? sanitizeStudentId(student.id) : sanitizeStudentId(studentId);
 
   const attendance = cls.attendance || [];
-  const existing = attendance.find((item) => String(item.studentId) === String(studentKey) || item.studentName === studentName);
+  const existing = attendance.find((item) => String(item.studentId) === sanitizedStudentId || item.studentName === studentName);
   if (existing) {
     existing.count = (existing.count || 0) + 1;
+    // Update studentId in case it was null before (migrate old data)
+    existing.studentId = sanitizedStudentId;
   } else {
-    attendance.push({ studentId: student ? student.id : studentKey, studentName, count: 1 });
+    attendance.push({ studentId: sanitizedStudentId, studentName, count: 1 });
   }
 
   classRef.assign({ attendance }).write();
@@ -225,18 +234,22 @@ server.post('/api/admin/classAttendance', (req, res) => {
   const cls = classRef.value();
   if (!cls) return res.status(404).json({ success: false, message: 'Class not found.' });
 
+  const sanitizedStudentId = studentId ? sanitizeStudentId(studentId) : studentId;
   let attendance = cls.attendance || [];
-  const studentKey = studentId ? String(studentId) : studentName;
-  const existing = attendance.find((item) => String(item.studentId) === studentKey || item.studentName === studentName);
+  const existing = attendance.find((item) => String(item.studentId) === sanitizedStudentId || item.studentName === studentName);
 
   if (existing) {
     if (count <= 0) {
-      attendance = attendance.filter((item) => !(String(item.studentId) === studentKey || item.studentName === studentName));
+      attendance = attendance.filter((item) => !(String(item.studentId) === sanitizedStudentId || item.studentName === studentName));
     } else {
       existing.count = count;
+      // Update studentId in case it was null before (migrate old data)
+      if (sanitizedStudentId) {
+        existing.studentId = sanitizedStudentId;
+      }
     }
   } else if (count > 0) {
-    attendance.push({ studentId: studentId ? studentId : studentName, studentName, count });
+    attendance.push({ studentId: sanitizedStudentId || studentName, studentName, count });
   }
 
   classRef.assign({ attendance }).write();
@@ -279,7 +292,8 @@ server.post('/api/professors/:id/classes', upload.single('rosterFile'), (req, re
         const idValue = row.id || row['Student ID'] || row['studentID'] || row['studentId'];
         const nameValue = row.name || row['Student Name'] || row['Name'] || row.studentName;
         if (idValue && nameValue) {
-          students.push({ id: String(idValue).trim(), name: String(nameValue).trim() });
+          const sanitizedId = sanitizeStudentId(idValue);
+          students.push({ id: sanitizedId, name: String(nameValue).trim() });
         }
       })
       .on('end', () => {
@@ -392,6 +406,94 @@ server.delete('/api/professors/:profId/classes/:classId/sessions/:sessionNumber/
     .write();
   
   res.json({ success: true, studentName });
+});
+
+// Add students to an existing class roster (without overwriting)
+server.post('/api/professors/:profId/classes/:classId/roster', upload.single('rosterFile'), (req, res) => {
+  const profId = Number(req.params.profId);
+  const classId = Number(req.params.classId);
+  
+  if (!req.file) {
+    return res.status(400).json({ success: false, message: 'No file provided' });
+  }
+
+  const db = router.db;
+  const prof = db.get('professors').find({ id: profId }).value();
+  if (!prof) {
+    fs.unlink(req.file.path, (err) => { if (err) console.error('Error deleting temp file:', err); });
+    return res.status(404).json({ success: false, message: 'Professor not found' });
+  }
+
+  const cls = prof.classes.find(c => c.id === classId);
+  if (!cls) {
+    fs.unlink(req.file.path, (err) => { if (err) console.error('Error deleting temp file:', err); });
+    return res.status(404).json({ success: false, message: 'Class not found' });
+  }
+
+  const newStudents = [];
+  const fileStream = fs.createReadStream(req.file.path);
+
+  fileStream
+    .pipe(csv())
+    .on('data', (row) => {
+      const idValue = row.id || row['Student ID'] || row['studentID'] || row['studentId'];
+      const nameValue = row.name || row['Student Name'] || row['Name'] || row.studentName;
+      if (idValue && nameValue) {
+        const sanitizedId = sanitizeStudentId(idValue);
+        newStudents.push({ id: sanitizedId, name: String(nameValue).trim() });
+      }
+    })
+    .on('end', () => {
+      fs.unlink(req.file.path, (unlinkErr) => {
+        if (unlinkErr) console.error('Error deleting temp file:', unlinkErr);
+      });
+
+      // Merge new students into global student list
+      const dbStudents = db.get('students');
+      const existingStudents = dbStudents.value() || [];
+      const mergedStudents = [...existingStudents];
+
+      newStudents.forEach((student) => {
+        const found = existingStudents.find((existing) => String(existing.id) === String(student.id));
+        if (!found) {
+          mergedStudents.push(student);
+        }
+      });
+
+      db.set('students', mergedStudents).write();
+
+      // Add new students to class attendance without overwriting existing entries
+      const currentAttendance = cls.attendance || [];
+      let addedCount = 0;
+
+      newStudents.forEach((student) => {
+        const found = currentAttendance.find((item) => String(item.studentId) === String(student.id));
+        if (!found) {
+          currentAttendance.push({
+            studentId: student.id,
+            studentName: student.name,
+            count: 0
+          });
+          addedCount++;
+        }
+      });
+
+      db.get('professors').find({ id: profId }).get('classes').find({ id: classId }).assign({ attendance: currentAttendance }).write();
+
+      res.status(200).json({ 
+        success: true, 
+        message: `Roster updated. Added ${addedCount} new students to class. ${newStudents.length - addedCount} students were already in the roster.`,
+        addedCount,
+        skippedCount: newStudents.length - addedCount,
+        attendance: currentAttendance
+      });
+    })
+    .on('error', (err) => {
+      fs.unlink(req.file.path, (unlinkErr) => {
+        if (unlinkErr) console.error('Error deleting temp file:', unlinkErr);
+      });
+      res.status(400).json({ success: false, message: 'Error parsing roster file', error: err.message });
+    });
 });
 
 // Get all students from database

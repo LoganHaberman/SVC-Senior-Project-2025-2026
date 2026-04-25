@@ -54,7 +54,19 @@
               ]
             }
           ],
-          "id": 1
+          "id": 1,
+          "attendance": [
+            {
+              "studentId": "000652146",
+              "studentName": "Grant Harsch",
+              "count": 4
+            },
+            {
+              "studentId": "000123456",
+              "studentName": "Joe Schmoe",
+              "count": 3
+            }
+          ]
         },
         {
           "title": "Bio II",
@@ -75,7 +87,14 @@
               "attendees": []
             }
           ],
-          "id": 2
+          "id": 2,
+          "attendance": [
+            {
+              "studentId": null,
+              "studentName": "Joe Schmoe",
+              "count": 1
+            }
+          ]
         }
       ]
     },
