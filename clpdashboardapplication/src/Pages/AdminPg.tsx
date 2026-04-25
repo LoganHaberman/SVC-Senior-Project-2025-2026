@@ -27,7 +27,7 @@ interface Professor {
 }
 
 function AdminPg() {
-  const API_BASE = '/api'
+  const API_BASE = 'http://localhost:3001/api'
   const [classes, setClasses] = useState<ClassRecord[]>([])
   const [selectedClassId, setSelectedClassId] = useState<string>('')
   const [loading, setLoading] = useState(true)
