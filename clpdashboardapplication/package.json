@@ -3,7 +3,7 @@
   "main": "LoginPg.tsx",
   "version": "0.1.0",
   "private": true,
-  "proxy": "http://localhost:5000",
+  "proxy": "http://localhost:3001",
   "dependencies": {
     "@types/papaparse": "^5.5.2",
     "axios": "^1.14.0",
