@@ -77,18 +77,35 @@ passport.use(samlStrategy);
 
 
 //Login
-app.get("/api/login", (req,res) => {
-  const username = req.query.username;
-  const password = req.query.password;
-  console.log("Login attempt with username:", username);
-    db.query("SELECT * FROM Users WHERE username = ? AND password = ?", [username.trim(), password.trim()], (err, result) => {
-        if (err) return res.json({error: err});
-        if (result.length > 0) {
-            res.json({message: "Login successful", user: result[0]});
-        } else {
-            res.json({error: "Invalid credentials"});
-        }
-    });
+app.post("/api/login", (req, res) => {
+  const { username, password } = req.body;
+
+  console.log("Login attempt:", username);
+
+  if (!username || !password) {
+    return res.status(400).json({ error: "Missing credentials" });
+  }
+
+  db.query(
+    "SELECT * FROM Users WHERE username = ? AND password = ?",
+    [username.trim(), password.trim()],
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err });
+
+      if (result.length > 0) {
+        res.json({
+          success: true,
+          userId: result[0].idUsers, // verify column name
+          role: result[0].role
+        });
+      } else {
+        res.json({
+          success: false,
+          message: "Invalid credentials"
+        });
+      }
+    }
+  );
 });
 
 //Admin Page Stuff
