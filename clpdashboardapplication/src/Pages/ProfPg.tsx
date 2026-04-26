@@ -1,9 +1,12 @@
-import React, { useEffect, useState, FormEvent } from 'react'
+import React, { useCallback, useEffect, useState, FormEvent } from 'react'
+import axios from 'axios'
+import Papa from 'papaparse';
+import { data } from 'react-router-dom';
 
-type CLPSession = {
-    sessionNumber: number;
-    date: string;
-    attendees: string[];
+type AttendanceRecord = {
+    studentId: number | string;
+    studentName: string;
+    count: number;
 }
 
 type Class = {
@@ -12,12 +15,12 @@ type Class = {
     code?: string
     semester?: string
     section?: number
-    clpDay?: string
-    sessions?: CLPSession[]
+    students?: { id: string; name: string }[]
+    attendance?: AttendanceRecord[]
 }
 
 function ProfPg() {
-    const API_BASE = 'http://localhost:3001/api'
+    const API_BASE = '/api'
     const profId = parseInt(localStorage.getItem('userId') || '3', 10)
 
     const [profName, setProfName] = useState<string>('')
@@ -26,111 +29,211 @@ function ProfPg() {
     const [error, setError] = useState<string | null>(null)
     const [showForm, setShowForm] = useState(false)
     const [selectedClassId, setSelectedClassId] = useState<number | null>(null)
-    const [formData, setFormData] = useState({ title: '', code: '', semester: '', clpDay: '' })
+    const [rosterFile, setRosterFile] = useState<File | null>(null)
+    const [reuploadFile, setReuploadFile] = useState<File | null>(null)
+    const [reuploading, setReuploading] = useState(false)
+    const [formData, setFormData] = useState({ title: '', code: '', semester: '' })
+    const isValidSemesterFormat = (value: string) => /^\d{4},\s*(Fall|Spring)$/i.test(value.trim())
+
+    const loadProfessorClasses = useCallback(async () => {
+        setLoading(true)
+        try {
+            const res = await axios.get(`${API_BASE}/getProfClasses`, {
+                params: { userId: profId }
+            })
+            if (!res.data) throw new Error('Failed to load professor')
+            const data = await res.data
+            setProfName(data.name || '')
+            setClasses(data.classes || [])
+        } catch (err: any) {
+            setError(err.message || 'Error loading data')
+        } finally {
+            setLoading(false)
+        }
+    }, [API_BASE, profId])
 
     useEffect(() => {
-        async function load() {
-            setLoading(true)
-            try {
-                const res = await fetch(`${API_BASE}/professors/${profId}`)
-                if (!res.ok) throw new Error('Failed to load professor')
-                const data = await res.json()
-                setProfName(data.name || '')
-                setClasses(data.classes || [])
-            } catch (err: any) {
-                setError(err.message || 'Error loading data')
-            } finally {
-                setLoading(false)
-            }
+        loadProfessorClasses()
+    }, [loadProfessorClasses])
+
+const handleAddClass = async (e: FormEvent) => {
+        e.preventDefault();
+        setError(null);
+
+        if (!formData.title.trim()) {
+            setError('Title is required');
+            return;
         }
-        load()
-    }, [])
 
-    const getNextDate = (weekdayName: string) => {
-        const days: Record<string, number> = {
-            Monday: 1,
-            Tuesday: 2,
-            Wednesday: 3,
-            Thursday: 4,
-            Friday: 5,
-        };
-
-        const targetDay = days[weekdayName];
-        if (targetDay === undefined) return null;
-
-        const today = new Date();
-        const currentDay = today.getDay();
-
-        let daysUntil = (targetDay - currentDay + 7) % 7;
-        if (daysUntil === 0) daysUntil = 7; // always NEXT occurrence
-
-        const result = new Date(today);
-        result.setDate(today.getDate() + daysUntil);
-
-        return result.toLocaleDateString('en-CA'); // YYYY-MM-DD (local)
-    };
-
-    const handleAddClass = async (e: FormEvent) => {
-        e.preventDefault()
-        setError(null)
-        
-        if (!formData.title.trim() || !formData.clpDay) {
-            setError('Title and CLP day are required')
-            return
+        if (!rosterFile) {
+            setError('Roster CSV is required for class creation');
+            return;
         }
 
         try {
-            const res = await fetch(`${API_BASE}/professors/${profId}/classes`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    title: formData.title.trim(),
-                    code: formData.code.trim(),
-                    semester: formData.semester.trim(),
-                    clpDay: formData.clpDay,
-                    sessions: [{
-                        sessionNumber: 1,
-                        date: getNextDate(formData.clpDay),
-                        attendees: []
-                    }]
-                }),
-            })
-            if (!res.ok) throw new Error('Failed to add class')
-            const newClass = await res.json()
-            setClasses(c => [...c, newClass])
-            setFormData({ title: '', code: '', semester: '', clpDay: '' })
-            setShowForm(false)
+            //Start by making class
+            const resA = await axios.post(`${API_BASE}/addClass`, {
+                profId: profId,
+                title: formData.title.trim(),
+                code: formData.code.trim() || null,
+                semester: formData.semester.trim() || null,
+            });
+
+            if (!resA.data || !resA.data.success) {
+                throw new Error(resA.data?.message || 'Failed to add class');
+            }
+
+            const classId = resA.data.class.id;
+
+            //Parse CSV
+            const students = await new Promise<any[]>((resolve, reject) => {
+                Papa.parse(rosterFile, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: (results) => {
+                        try {
+                            const cleanName = (name: string) =>
+                                name.replace(/^(Mr\.|Ms\.|Mrs\.)\s*/i, '').trim();
+
+                            const parsed = results.data
+                                .map((row: any) => ({
+                                    studentID: Number(row['Student ID']),
+                                    studentName: cleanName(
+                                        row['Student Name'] || row['Name'] || ''
+                                    ),
+                                    classID: classId
+                                }))
+                                .filter((s: any) => s.studentID && s.studentName);
+
+                            resolve(parsed);
+                        } catch (err) {
+                            reject(err);
+                        }
+                    },
+                    error: reject
+                });
+            });
+
+            console.log('Parsed students:', students);
+
+            //Sends roster to backend
+            console.log('Sending roster to backend:', students);
+            await axios.post(`${API_BASE}/admin/roster`, {
+                students
+            });
+
+            //Updates UI
+            setClasses(c => [...c, resA.data.class]);
+            setFormData({ title: '', code: '', semester: ''});
+            setRosterFile(null);
+            setShowForm(false);
+
         } catch (err: any) {
-            setError(err.message || 'Error adding class')
+            console.error(err);
+            setError(err.response?.data?.message || err.message || 'Error adding class');
         }
-    }
+    };
 
     const handleDeleteClass = async (classId: number) => {
         if (!window.confirm('Delete this class?')) return
         setError(null)
         
         try {
-            const res = await fetch(`${API_BASE}/professors/${profId}/classes/${classId}`, {
-                method: 'DELETE',
-            })
-            if (!res.ok) throw new Error('Failed to delete class')
+            const res = await axios.delete(`${API_BASE}/professors/${profId}/classes/${classId}`)
+            if (!res.data || !res.data.success) throw new Error('Failed to delete class')
             setClasses(c => c.filter(cls => cls.id !== classId))
             setSelectedClassId(null)
         } catch (err: any) {
-            setError(err.message || 'Error deleting class')
+            setError(err.response?.data?.message || err.message || 'Error deleting class')
         }
     }
+
+    const handleReuploadRoster = async () => {
+        if (!selectedClass) {
+            setError('Select a class first');
+            return;
+        }
+
+        if (!reuploadFile) {
+            setError('Choose a roster CSV to reupload');
+            return;
+        }
+
+        setError(null);
+        setReuploading(true);
+
+        try {
+            Papa.parse(reuploadFile, {
+                header: true,
+                skipEmptyLines: true,
+                complete: async (results: any) => {
+                const parsed = results.data;
+
+                const students = parsed
+                    .map((row: any) => {
+                        const rawId = row["Student ID"];
+                        const rawName = row["Student Name"];
+
+                        if (!rawId || !rawName) return null;
+
+                    return {
+                        studentID: String(rawId).trim(),
+                        studentName: String(rawName)
+                            .replace(/^Mr\.?\s*/i, '') // remove "Mr."
+                            .replace(/^Ms\.?\s*/i, '') // remove "Ms."
+                            .replace(/^Mrs\.?\s*/i, '') // optional
+                            .trim()
+                    };
+                })
+                .filter(Boolean);
+
+            if (students.length === 0) {
+                throw new Error("CSV is empty or invalid");
+            }
+
+            const res = await axios.post(
+                `${API_BASE}/professors/${profId}/classes/${selectedClass.id}/roster`,
+                { students }
+            );
+
+            if (!res.data?.success) {
+                throw new Error(res.data?.message || 'Failed to reupload roster');
+            }
+
+            await loadProfessorClasses();
+            setReuploadFile(null);
+        },
+        error: () => {
+            setError("Error parsing CSV");
+        }
+    });
+
+        } catch (err: any) {
+            setError(err.response?.data?.message || err.message || 'Error reuploading roster');
+        } finally {
+            setReuploading(false);
+        }
+    };
 
     const selectedClass = classes.find(c => c.id === selectedClassId)
 
     return (
-        <div style={{ padding: 20, fontFamily: 'Arial, sans-serif' }}>
-            <h1>CLP Dashboard</h1>
+        <div style={{ fontFamily: 'Arial, sans-serif' }}>
+            <div style={{ width: '100%', marginBottom: 20 }}>
+                <div style={{ backgroundColor: '#0b5d3b', color: 'white', padding: '12px 20px', fontWeight: 700 }}>
+                    <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>Collaborative Learning Program</span>
+                        <span style={{ fontWeight: 600, opacity: 0.95 }}>Professor Dashboard</span>
+                    </div>
+                </div>
+                <div style={{ backgroundColor: '#c9a227', height: 8 }} />
+            </div>
+            <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 20px 20px 20px' }}>
             {loading ? <p>Loading...</p> : (
                 <>
                     <h2>{profName || 'Professor'}</h2>
                     
-                    <div style={{ display: 'flex', gap: 20 }}>
+                    <div style={{ display: 'flex', gap: 20, justifyContent: 'center', alignItems: 'flex-start' }}>
                         <div style={{ flex: 1, maxWidth: 350 }}>
                             <h3>Classes</h3>
                             {classes.length === 0 ? (
@@ -155,8 +258,6 @@ function ProfPg() {
                                         >
                                             <div>
                                                 <strong>{cls.title}</strong> {cls.code && `(${cls.code})`}
-                                                <br />
-                                                <small style={{ color: '#666' }}>{cls.clpDay}</small>
                                             </div>
                                             <button 
                                                 onClick={(e) => { e.stopPropagation(); handleDeleteClass(cls.id); }}
@@ -173,26 +274,42 @@ function ProfPg() {
                                 <form onSubmit={handleAddClass} style={{ marginTop: 15, padding: 12, border: '1px solid #ccc', borderRadius: 4 }}>
                                     <div style={{ marginBottom: 10 }}>
                                         <label>Title:</label>
-                                        <input type="text" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} style={{ width: '100%', padding: 6 }} />
+                                        <input
+                                            type="text"
+                                            value={formData.title}
+                                            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                                            style={{ width: '100%', padding: 6, boxSizing: 'border-box' }}
+                                        />
                                     </div>
                                     <div style={{ marginBottom: 10 }}>
                                         <label>Code:</label>
-                                        <input type="text" value={formData.code} onChange={(e) => setFormData({ ...formData, code: e.target.value })} style={{ width: '100%', padding: 6 }} />
+                                        <input
+                                            type="text"
+                                            value={formData.code}
+                                            onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                                            style={{ width: '100%', padding: 6, boxSizing: 'border-box' }}
+                                        />
                                     </div>
                                     <div style={{ marginBottom: 10 }}>
                                         <label>Semester:</label>
-                                        <input type="text" value={formData.semester} onChange={(e) => setFormData({ ...formData, semester: e.target.value })} style={{ width: '100%', padding: 6 }} />
+                                        <input
+                                            type="text"
+                                            value={formData.semester}
+                                            onChange={(e) => setFormData({ ...formData, semester: e.target.value })}
+                                            placeholder="e.g. 2026, Fall"
+                                            style={{ width: '100%', padding: 6, boxSizing: 'border-box' }}
+                                        />
+                                        <small style={{ color: '#666' }}>Format: YYYY, Fall or YYYY, Spring</small>
                                     </div>
                                     <div style={{ marginBottom: 10 }}>
-                                        <label>CLP Day:</label>
-                                        <select value={formData.clpDay} onChange={(e) => setFormData({ ...formData, clpDay: e.target.value })} style={{ width: '100%', padding: 6 }}>
-                                            <option value="">Select day</option>
-                                            <option value="Monday">Monday</option>
-                                            <option value="Tuesday">Tuesday</option>
-                                            <option value="Wednesday">Wednesday</option>
-                                            <option value="Thursday">Thursday</option>
-                                            <option value="Friday">Friday</option>
-                                        </select>
+                                        <label>Roster CSV (required):</label>
+                                        <input
+                                            type="file"
+                                            accept=".csv"
+                                            onChange={(e) => setRosterFile(e.target.files?.[0] || null)}
+                                            style={{ width: '100%', padding: 6, boxSizing: 'border-box' }}
+                                        />
+                                        <small style={{ color: '#666' }}>Roster upload is required to create the class and populate student attendance records.</small>
                                     </div>
                                     <button type="submit" style={{ padding: '8px 16px', marginRight: 8, backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Add</button>
                                     <button type="button" onClick={() => setShowForm(false)} style={{ padding: '8px 16px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Cancel</button>
@@ -209,44 +326,67 @@ function ProfPg() {
                                 <>
                                     <h3>{selectedClass.title}</h3>
                                     <p><strong>Code:</strong> {selectedClass.code} | <strong>Semester:</strong> {selectedClass.semester}</p>
-                                    
-                                    <h4>CLP Sessions</h4>
-                                    {selectedClass.sessions && selectedClass.sessions.length > 0 ? (
-                                        <ul style={{ listStyle: 'none', padding: 0 }}>
-                                            {selectedClass.sessions.map(session => (
-                                                <li 
-                                                    key={session.sessionNumber}
+                                    <div style={{ marginBottom: 16, padding: 12, backgroundColor: '#f8f9fa', border: '1px solid #ddd', borderRadius: 4 }}>
+                                        <h4 style={{ marginTop: 0 }}>Reupload Class Roster</h4>
+                                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                                            <input
+                                                type="file"
+                                                accept=".csv"
+                                                onChange={(e) => setReuploadFile(e.target.files?.[0] || null)}
+                                                style={{ padding: 6 }}
+                                            />
+                                            {reuploadFile && (
+                                                <button
+                                                    onClick={handleReuploadRoster}
+                                                    disabled={reuploading}
                                                     style={{
-                                                        padding: 12,
-                                                        marginBottom: 10,
-                                                        border: '1px solid #ddd',
+                                                        padding: '8px 12px',
+                                                        backgroundColor: reuploading ? '#6c757d' : '#007bff',
+                                                        color: 'white',
+                                                        border: 'none',
                                                         borderRadius: 4,
-                                                        backgroundColor: '#f9f9f9'
+                                                        cursor: reuploading ? 'not-allowed' : 'pointer'
                                                     }}
                                                 >
-                                                    <p style={{ margin: 0, fontWeight: 'bold' }}>Session {session.sessionNumber} - {session.date}</p>
-                                                    <p style={{ margin: '6px 0 0 0', fontSize: 13, color: '#666' }}>Attendees: {session.attendees.length}</p>
-                                                    {session.attendees.length > 0 && (
-                                                        <ul style={{ margin: '8px 0 0 20px', fontSize: 13 }}>
-                                                            {session.attendees.map((name, idx) => (
-                                                                <li key={idx}>{name}</li>
-                                                            ))}
-                                                        </ul>
-                                                    )}
-                                                </li>
-                                            ))}
-                                        </ul>
+                                                    {reuploading ? 'Uploading...' : 'Reupload Roster'}
+                                                </button>
+                                            )}
+                                        </div>
+                                        <small style={{ color: '#666' }}>
+                                            Reuploading replaces this class roster and keeps attendance counts for matching student IDs.
+                                        </small>
+                                    </div>
+                                    
+                                    <h4>Attendance Summary</h4>
+                                    {selectedClass.attendance && selectedClass.attendance.length > 0 ? (
+                                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                            <thead>
+                                                <tr>
+                                                    <th style={{ textAlign: 'left', padding: 10, borderBottom: '1px solid #ddd' }}>Student</th>
+                                                    <th style={{ textAlign: 'right', padding: 10, borderBottom: '1px solid #ddd' }}>Sessions attended</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {selectedClass.attendance.map((record) => (
+                                                    <tr key={`${record.studentId}-${record.studentName}`}>
+                                                        <td style={{ padding: 10, borderBottom: '1px solid #f0f0f0' }}>{record.studentName}</td>
+                                                        <td style={{ padding: 10, textAlign: 'right', borderBottom: '1px solid #f0f0f0' }}>{record.count}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
                                     ) : (
-                                        <p>No sessions yet.</p>
+                                        <p>No attendance records for this class yet.</p>
                                     )}
                                 </>
                             ) : (
-                                <p>Select a class to view sessions</p>
+                                <p>Select a class to view attendance</p>
                             )}
                         </div>
                     </div>
                 </>
             )}
+        </div>
         </div>
     )
 }

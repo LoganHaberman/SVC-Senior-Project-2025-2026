@@ -3,8 +3,14 @@
   "main": "LoginPg.tsx",
   "version": "0.1.0",
   "private": true,
+  "proxy": "http://localhost:5000",
   "dependencies": {
     "@types/papaparse": "^5.5.2",
+    "axios": "^1.14.0",
+    "csv-parser": "^3.0.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
+    "multer": "^1.4.5-lts.1",
     "papaparse": "^5.5.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
@@ -40,6 +46,7 @@
   "devDependencies": {
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "baseline-browser-mapping": "^2.10.21",
     "concurrently": "^9.2.1",
     "json-server": "^0.17.4",
     "react-scripts": "^5.0.1",

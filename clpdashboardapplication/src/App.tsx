@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import LoginPg from './Login/LoginPg';
-import StudentPg from './Pages/StudentPg';
+import FacilitatorPg from './Pages/FacilitatorPg';
 import ProfPg from './Pages/ProfPg';
 import AdminPg from './Pages/AdminPg';
 
@@ -10,7 +10,8 @@ function App() {
         <BrowserRouter>
             <Routes>
                 <Route path="/" element={<LoginPg />} />
-                <Route path="/studentdash" element={<StudentPg />} />
+                <Route path="/studentdash" element={<FacilitatorPg />} />
+                <Route path="/facilitatordash" element={<FacilitatorPg />} />
                 <Route path="/professordash" element={<ProfPg />} />
                 <Route path="/admindash" element={<AdminPg />} />
             </Routes>
