@@ -282,19 +282,24 @@ app.get("/api/getProfClasses", (req, res) => {
               //get attendance counts
               db.query(
                 `SELECT 
-                   sc.classID,
-                   s.studentID,
-                   st.studentName,
-                   COUNT(a.attendanceID) AS count
-                 FROM StudentClasses sc
-                 JOIN Students st ON sc.studentID = st.studentID
-                 LEFT JOIN Sessions sess ON sc.classID = sess.classID
-                 LEFT JOIN Attendance a 
-                   ON a.sessionID = sess.sessionID 
-                   AND a.studentID = sc.studentID
-                 JOIN Students s ON s.studentID = sc.studentID
-                 WHERE sc.classID IN (?)
-                 GROUP BY sc.classID, s.studentID`,
+                  sc.classID,
+                  sc.studentID,
+                  st.studentName,
+                  COUNT(DISTINCT a.sessionID) AS count
+                FROM StudentClasses sc
+                JOIN Students st 
+                  ON st.studentID = sc.studentID
+
+                LEFT JOIN Sessions s 
+                  ON s.classID = sc.classID
+
+                LEFT JOIN Attendance a 
+                  ON a.studentID = sc.studentID 
+                  AND a.sessionID = s.sessionID
+
+                WHERE sc.classID IN (?)
+
+                GROUP BY sc.classID, sc.studentID, st.studentName`,
                 [classIds],
                 (err, attendanceResults) => {
                   if (err) return res.status(500).json({ error: err });
