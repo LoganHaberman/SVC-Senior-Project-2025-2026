@@ -80,18 +80,31 @@ passport.use(samlStrategy);
 app.post("/api/login", (req, res) => {
   const { username, password } = req.body;
 
-  console.log("Login attempt:", username);
+  console.log("Login attempt:", username, password);
+
+  if (!username || !password) {
+    return res.status(400).json({
+      success: false,
+      message: "Username and password are required"
+    });
+  }
 
   db.query(
     "SELECT * FROM Users WHERE username = ? AND password = ?",
     [username.trim(), password.trim()],
     (err, result) => {
-      if (err) return res.status(500).json({ success: false, message: "DB error" });
+      if (err) {
+        console.error("DB ERROR:", err);
+        return res.status(500).json({
+          success: false,
+          message: "Database error"
+        });
+      }
 
       if (result.length > 0) {
         return res.json({
           success: true,
-          userId: result[0].idUsers,
+          userId: result[0].idUsers, // confirm column name!
           role: result[0].role
         });
       } else {
