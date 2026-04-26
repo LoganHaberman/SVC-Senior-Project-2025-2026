@@ -20,27 +20,33 @@ server.use(jsonServer.bodyParser);
 const upload = multer({ dest: 'uploads/' });
 
 // Helpers
-const getNextId = (collectionName) => {
-  const items = router.db.get(collectionName).value() || [];
-  return items.reduce((maxId, item) => {
-    const id = item && typeof item.id === 'number' ? item.id : 0;
-    return id > maxId ? id : maxId;
-  }, 0) + 1;
+const normalizeStudentId = (rawId) => {
+  const digits = String(rawId ?? '').replace(/\D/g, '');
+  if (!digits) return null;
+  const withoutLeadingZeros = digits.replace(/^0+/, '');
+  if (!withoutLeadingZeros) return null;
+  // Keep IDs in a consistent 6-digit form for matching.
+  return withoutLeadingZeros.length > 6
+    ? withoutLeadingZeros.slice(-6)
+    : withoutLeadingZeros;
 };
 
-const normalizeClassAttendance = (db, cls) => {
-  if (!cls.attendance) {
-    const attendanceMap = new Map();
-    (cls.sessions || []).forEach((session) => {
-      (session.attendees || []).forEach((name) => {
-        const studentName = String(name).trim();
-        if (!studentName) return;
-        const existing = attendanceMap.get(studentName) || { studentId: null, studentName, count: 0 };
-        existing.count += 1;
-        attendanceMap.set(studentName, existing);
-      });
-    });
-    cls.attendance = Array.from(attendanceMap.values());
+const normalizeSemester = (rawSemester) => {
+  const value = String(rawSemester ?? '').trim();
+  const match = value.match(/^(\d{4})\s*,\s*(fall|spring)$/i);
+  if (!match) return null;
+  const year = match[1];
+  const termRaw = match[2].toLowerCase();
+  const term = termRaw === 'fall' ? 'Fall' : 'Spring';
+  return `${year}, ${term}`;
+};
+
+const ensureClassAttendance = (cls) => {
+  if (!Array.isArray(cls.students)) {
+    cls.students = [];
+  }
+  if (!Array.isArray(cls.attendance)) {
+    cls.attendance = [];
   }
   return cls;
 };
@@ -53,10 +59,80 @@ const findProfessor = (db, professorId) => {
   return prof;
 };
 
-const findStudentById = (db, studentId) => {
-  const stringId = String(studentId);
-  return db.get('students').find((s) => String(s.id) === stringId || Number(s.id) === Number(studentId)).value();
-};
+const parseRosterCsvFile = (filePath) =>
+  new Promise((resolve, reject) => {
+    const students = [];
+    fs.createReadStream(filePath)
+      .pipe(csv())
+      .on('data', (row) => {
+        const normalizedRow = {};
+        Object.entries(row).forEach(([key, value]) => {
+          const normalizedKey = String(key)
+            .replace(/^\uFEFF/, '')
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, '');
+          normalizedRow[normalizedKey] = value;
+        });
+
+        let idValue =
+          normalizedRow.studentid ??
+          normalizedRow.id ??
+          normalizedRow.sid ??
+          row.id ??
+          row['Student ID'] ??
+          row['studentID'] ??
+          row['studentId'];
+        let nameValue =
+          normalizedRow.studentname ??
+          normalizedRow.name ??
+          row.name ??
+          row['Student Name'] ??
+          row['Name'] ??
+          row.studentName;
+
+        // Support headerless CSVs like: "Grant,000123456"
+        if (!idValue || !nameValue) {
+          const values = Object.values(row);
+          if (values.length >= 2) {
+            const first = String(values[0] ?? '').trim();
+            const second = String(values[1] ?? '').trim();
+            if (first && second) {
+              const firstLooksLikeId = /^\d+$/.test(first);
+              const secondLooksLikeId = /^\d+$/.test(second);
+
+              if (firstLooksLikeId && !secondLooksLikeId) {
+                idValue = first;
+                nameValue = second;
+              } else {
+                nameValue = first;
+                idValue = second;
+              }
+            }
+          }
+        }
+
+        if (idValue && nameValue) {
+          const normalizedId = normalizeStudentId(idValue);
+          const normalizedName = String(nameValue).trim();
+          if (!normalizedId || !normalizedName) return;
+          students.push({ id: normalizedId, name: normalizedName });
+        }
+      })
+      .on('end', () => {
+        const rosterById = new Map();
+        students.forEach((student) => {
+          const rosterId = String(student.id).trim();
+          const rosterName = String(student.name).trim();
+          if (!rosterId || !rosterName) return;
+          if (!rosterById.has(rosterId)) {
+            rosterById.set(rosterId, { id: rosterId, name: rosterName });
+          }
+        });
+        resolve(Array.from(rosterById.values()));
+      })
+      .on('error', (err) => reject(err));
+  });
 
 // Login endpoint
 // user and pass expected and success role and token are returned
@@ -70,78 +146,6 @@ server.post('/api/login', (req, res) => {
   }
 });
 
-// Signup request endpoint
-server.post('/api/signup', (req, res) => {
-  const { username, password, fullName } = req.body;
-  if (!username || !password || !fullName) {
-    return res.status(400).json({ success: false, message: 'Username, password, and full name are required.' });
-  }
-
-  const existingUser = router.db.get('users').find({ username }).value();
-  const existingRequest = router.db.get('signupRequests').find({ username }).value();
-  if (existingUser || existingRequest) {
-    return res.status(409).json({ success: false, message: 'A user or signup request with that username already exists.' });
-  }
-
-  const request = {
-    id: getNextId('signupRequests'),
-    username,
-    password,
-    fullName,
-    status: 'pending',
-    submittedAt: new Date().toISOString()
-  };
-
-  router.db.get('signupRequests').push(request).write();
-  res.status(201).json({ success: true, request, message: 'Signup request submitted. Admin will assign your role.' });
-});
-
-server.get('/api/signupRequests', (req, res) => {
-  const requests = router.db.get('signupRequests').value() || [];
-  res.json(requests);
-});
-
-server.post('/api/assignRole', (req, res) => {
-  const { requestId, role } = req.body;
-  const validRoles = ['student', 'professor', 'admin'];
-  if (!requestId || !role || !validRoles.includes(role)) {
-    return res.status(400).json({ success: false, message: 'Valid requestId and role are required.' });
-  }
-
-  const signupRequest = router.db.get('signupRequests').find({ id: requestId }).value();
-  if (!signupRequest) {
-    return res.status(404).json({ success: false, message: 'Signup request not found.' });
-  }
-
-  const existingUser = router.db.get('users').find({ username: signupRequest.username }).value();
-  if (existingUser) {
-    return res.status(409).json({ success: false, message: 'A user with that username already exists.' });
-  }
-
-  const userId = getNextId('users');
-  const newUser = {
-    id: userId,
-    username: signupRequest.username,
-    password: signupRequest.password,
-    role
-  };
-
-  router.db.get('users').push(newUser).write();
-  router.db.get('signupRequests').remove({ id: requestId }).write();
-
-  if (role === 'professor') {
-    const professorId = getNextId('professors');
-    router.db.get('professors').push({
-      id: professorId,
-      name: signupRequest.fullName,
-      userId,
-      classes: []
-    }).write();
-  }
-
-  res.json({ success: true, user: newUser, message: `Assigned role ${role} to ${signupRequest.username}` });
-});
-
 // Get professor by id (includes classes)
 // When a professor's page is loaded this API is used to get classes pertaining to that prof
 server.get('/api/professors/:id/classes', (req, res) => {
@@ -150,7 +154,7 @@ server.get('/api/professors/:id/classes', (req, res) => {
   const prof = findProfessor(db, id);
   if (!prof) return res.status(404).json({ message: 'Professor not found' });
 
-  prof.classes = (prof.classes || []).map((cls) => normalizeClassAttendance(db, cls));
+  prof.classes = (prof.classes || []).map((cls) => ensureClassAttendance(cls));
   res.json(prof);
 });
 
@@ -172,13 +176,8 @@ server.get('/api/getProfClasses', (req, res) => {
   const prof = findProfessor(db, professorId);
   if (!prof) return res.status(404).json({ message: 'Professor not found' });
 
-  prof.classes = (prof.classes || []).map((cls) => normalizeClassAttendance(db, cls));
+  prof.classes = (prof.classes || []).map((cls) => ensureClassAttendance(cls));
   res.json(prof);
-});
-
-server.get('/api/allStudents', (req, res) => {
-  const students = router.db.get('students').value() || [];
-  res.json(students.map((s) => ({ studentID: Number(s.id), name: s.name })));
 });
 
 server.post('/api/attendance', (req, res) => {
@@ -195,20 +194,38 @@ server.post('/api/attendance', (req, res) => {
   const cls = classRef.value();
   if (!cls) return res.status(404).json({ success: false, message: 'Class not found.' });
 
-  const student = findStudentById(db, studentId);
-  const studentName = student?.name || String(studentId);
-  const studentKey = student ? String(student.id) : studentName;
+  const rosterStudents = Array.isArray(cls.students) ? cls.students : [];
+  const scannedId = normalizeStudentId(studentId);
+  if (!scannedId) {
+    return res.status(400).json({ success: false, message: 'Invalid student ID. Expected digits only.' });
+  }
+  const rosterEntry = rosterStudents.find((student) => String(student.id) === scannedId);
 
-  const attendance = cls.attendance || [];
-  const existing = attendance.find((item) => String(item.studentId) === String(studentKey) || item.studentName === studentName);
-  if (existing) {
-    existing.count = (existing.count || 0) + 1;
-  } else {
-    attendance.push({ studentId: student ? student.id : studentKey, studentName, count: 1 });
+  // Enforce roster-based attendance: only students in uploaded class roster can scan in.
+  if (!rosterEntry) {
+    return res.status(403).json({ success: false, message: 'Student is not on this class roster.' });
   }
 
+  const attendance = Array.isArray(cls.attendance) ? cls.attendance : [];
+  let existing = attendance.find((item) => {
+    const itemId = item?.studentId != null ? String(item.studentId) : null;
+    return itemId === scannedId;
+  });
+
+  if (!existing) {
+    existing = {
+      studentId: rosterEntry.id,
+      studentName: rosterEntry.name,
+      count: 0
+    };
+    attendance.push(existing);
+  }
+
+  existing.studentName = rosterEntry.name;
+  existing.count = (existing.count || 0) + 1;
+
   classRef.assign({ attendance }).write();
-  res.json({ success: true, studentName, attendance });
+  res.json({ success: true, studentName: rosterEntry.name, attendance });
 });
 
 server.post('/api/admin/classAttendance', (req, res) => {
@@ -250,77 +267,121 @@ server.post('/api/professors/:id/classes', upload.single('rosterFile'), (req, re
   const prof = profRef.value();
   if (!prof) return res.status(404).json({ message: 'Professor not found' });
 
-  const { title, code, semester, clpDay } = req.body;
-  if (!title || !clpDay) {
-    return res.status(400).json({ success: false, message: 'Title and CLP day are required.' });
+  const { title, code, semester } = req.body;
+  if (!title) {
+    return res.status(400).json({ success: false, message: 'Title is required.' });
+  }
+  const normalizedSemester = normalizeSemester(semester);
+  if (!normalizedSemester) {
+    return res.status(400).json({
+      success: false,
+      message: 'Semester is required in format: YYYY, Fall or YYYY, Spring.'
+    });
+  }
+  if (!req.file) {
+    return res.status(400).json({ success: false, message: 'Roster CSV is required for class creation.' });
   }
 
   const existing = prof.classes || [];
   const maxId = existing.reduce((m, c) => (c.id && c.id > m ? c.id : m), 0);
-  const newClass = {
+  const newClassBase = {
     id: maxId + 1,
     title: title.trim(),
     code: code ? String(code).trim() : undefined,
-    semester: semester ? String(semester).trim() : undefined,
-    clpDay: clpDay.trim(),
-    sessions: [],
-    attendance: []
+    semester: normalizedSemester
   };
 
-  profRef.get('classes').push(newClass).write();
-
-  if (req.file) {
-    const students = [];
-    const fileStream = fs.createReadStream(req.file.path);
-
-    fileStream
-      .pipe(csv())
-      .on('data', (row) => {
-        const idValue = row.id || row['Student ID'] || row['studentID'] || row['studentId'];
-        const nameValue = row.name || row['Student Name'] || row['Name'] || row.studentName;
-        if (idValue && nameValue) {
-          students.push({ id: String(idValue).trim(), name: String(nameValue).trim() });
-        }
-      })
-      .on('end', () => {
-        fs.unlink(req.file.path, (unlinkErr) => {
-          if (unlinkErr) console.error('Error deleting temp file:', unlinkErr);
-        });
-
-        const dbStudents = router.db.get('students');
-        const existingStudents = dbStudents.value() || [];
-        const mergedStudents = [...existingStudents];
-
-        students.forEach((student) => {
-          const found = existingStudents.find((existing) => String(existing.id) === String(student.id));
-          if (!found) {
-            mergedStudents.push(student);
-          }
-        });
-
-        router.db.set('students', mergedStudents).write();
-
-        const attendanceEntries = students.map((student) => ({
-          studentId: student.id,
-          studentName: student.name,
-          count: 0
-        }));
-
-        db.get('professors').find({ id }).get('classes').find({ id: newClass.id }).assign({ attendance: attendanceEntries }).write();
-
-        res.status(201).json({ success: true, class: newClass, message: `Class created and roster uploaded with ${students.length} students.` });
-      })
-      .on('error', (err) => {
-        fs.unlink(req.file.path, (unlinkErr) => {
-          if (unlinkErr) console.error('Error deleting temp file:', unlinkErr);
-        });
-        res.status(400).json({ success: false, message: 'Error parsing roster file', error: err.message });
+  parseRosterCsvFile(req.file.path)
+    .then((rosterStudents) => {
+      fs.unlink(req.file.path, (unlinkErr) => {
+        if (unlinkErr) console.error('Error deleting temp file:', unlinkErr);
       });
+      if (rosterStudents.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Roster CSV has no valid rows. Expected student id and name columns.'
+        });
+      }
 
-    return;
+      const attendanceEntries = rosterStudents.map((student) => ({
+        studentId: student.id,
+        studentName: student.name,
+        count: 0
+      }));
+
+      const classRecord = {
+        ...newClassBase,
+        students: rosterStudents,
+        attendance: attendanceEntries
+      };
+
+      profRef.get('classes').push(classRecord).write();
+
+      res.status(201).json({
+        success: true,
+        class: classRecord,
+        message: `Class created and roster uploaded with ${rosterStudents.length} students.`
+      });
+    })
+    .catch((err) => {
+      fs.unlink(req.file.path, (unlinkErr) => {
+        if (unlinkErr) console.error('Error deleting temp file:', unlinkErr);
+      });
+      res.status(400).json({ success: false, message: 'Error parsing roster file', error: err.message });
+    });
+});
+
+server.post('/api/professors/:id/classes/:classId/roster', upload.single('rosterFile'), (req, res) => {
+  const profId = Number(req.params.id);
+  const classId = Number(req.params.classId);
+  const db = router.db;
+  const profRef = db.get('professors').find({ id: profId });
+  const prof = profRef.value();
+  if (!prof) return res.status(404).json({ success: false, message: 'Professor not found.' });
+  if (!req.file) {
+    return res.status(400).json({ success: false, message: 'Roster CSV is required.' });
   }
 
-  res.status(201).json({ success: true, class: newClass, message: 'Class created successfully.' });
+  const classRef = profRef.get('classes').find({ id: classId });
+  const existingClass = classRef.value();
+  if (!existingClass) return res.status(404).json({ success: false, message: 'Class not found.' });
+
+  parseRosterCsvFile(req.file.path)
+    .then((rosterStudents) => {
+      fs.unlink(req.file.path, (unlinkErr) => {
+        if (unlinkErr) console.error('Error deleting temp file:', unlinkErr);
+      });
+      if (rosterStudents.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Roster CSV has no valid rows. Expected student id and name columns.'
+        });
+      }
+
+      const existingAttendance = Array.isArray(existingClass.attendance) ? existingClass.attendance : [];
+      const existingCountById = new Map(
+        existingAttendance.map((record) => [String(record.studentId), Number(record.count) || 0])
+      );
+      const attendance = rosterStudents.map((student) => ({
+        studentId: student.id,
+        studentName: student.name,
+        count: existingCountById.get(String(student.id)) || 0
+      }));
+
+      classRef.assign({ students: rosterStudents, attendance }).write();
+      const updatedClass = classRef.value();
+      res.json({
+        success: true,
+        class: updatedClass,
+        message: `Roster reuploaded with ${rosterStudents.length} students.`
+      });
+    })
+    .catch((err) => {
+      fs.unlink(req.file.path, (unlinkErr) => {
+        if (unlinkErr) console.error('Error deleting temp file:', unlinkErr);
+      });
+      res.status(400).json({ success: false, message: 'Error parsing roster file', error: err.message });
+    });
 });
 
 // Delete a professor's class from a professor's classes list
@@ -336,69 +397,6 @@ server.delete('/api/professors/:id/classes/:classId', (req, res) => {
 
   db.get('professors').find({ id }).get('classes').remove({ id: classId }).write();
   res.json({ success: true, id: classId });
-});
-
-server.post('/api/professors/:profId/classes/:classId/sessions/:sessionNumber/attend', (req, res) => {
-  const profId = Number(req.params.profId);
-  const classId = Number(req.params.classId);
-  const sessionNumber = Number(req.params.sessionNumber);
-  const { studentName } = req.body;
-  const db = router.db;
-  
-  const prof = db.get('professors').find({ id: profId }).value();
-  if (!prof) return res.status(404).json({ message: 'Professor not found' });
-  
-  const cls = prof.classes.find(c => c.id === classId);
-  if (!cls) return res.status(404).json({ message: 'Class not found' });
-  
-  const session = cls.sessions.find(s => s.sessionNumber === sessionNumber);
-  if (!session) return res.status(404).json({ message: 'Session not found' });
-  
-  if (!studentName) return res.status(400).json({ message: 'Student name required' });
-
-  if (!session.attendees.includes(studentName)) {
-    db.get('professors').find({ id: profId }).get('classes').find({ id: classId })
-      .get('sessions').find({ sessionNumber }).get('attendees').push(studentName).write();
-  }
-  
-  res.json({ success: true, studentName });
-});
-
-server.delete('/api/professors/:profId/classes/:classId/sessions/:sessionNumber/attend/:studentName', (req, res) => {
-  const profId = Number(req.params.profId);
-  const classId = Number(req.params.classId);
-  const sessionNumber = Number(req.params.sessionNumber);
-  const studentName = decodeURIComponent(req.params.studentName);
-  const db = router.db;
-  
-  const prof = db.get('professors').find({ id: profId }).value();
-  if (!prof) return res.status(404).json({ message: 'Professor not found' });
-  
-  const cls = prof.classes.find(c => c.id === classId);
-  if (!cls) return res.status(404).json({ message: 'Class not found' });
-  
-  const session = cls.sessions.find(s => s.sessionNumber === sessionNumber);
-  if (!session) return res.status(404).json({ message: 'Session not found' });
-
-  const updatedAttendees = session.attendees.filter(name => name !== studentName);
-
-  db.get('professors')
-    .find({ id: profId })
-    .get('classes')
-    .find({ id: classId })
-    .get('sessions')
-    .find({ sessionNumber })
-    .assign({ attendees: updatedAttendees })
-    .write();
-  
-  res.json({ success: true, studentName });
-});
-
-// Get all students from database
-server.get('/api/students', (req, res) => {
-  const db = router.db;
-  const students = db.get('students').value() || [];
-  res.json(students);
 });
 
 server.use('/api', router);
