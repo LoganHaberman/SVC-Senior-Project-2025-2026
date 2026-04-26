@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useState, FormEvent } from 'react'
 import axios from 'axios'
+import Papa from 'papaparse';
+import { data } from 'react-router-dom';
 
 type AttendanceRecord = {
     studentId: number | string;
@@ -54,47 +56,83 @@ function ProfPg() {
         loadProfessorClasses()
     }, [loadProfessorClasses])
 
-    const handleAddClass = async (e: FormEvent) => {
-        e.preventDefault()
-        setError(null)
-        
+const handleAddClass = async (e: FormEvent) => {
+        e.preventDefault();
+        setError(null);
+
         if (!formData.title.trim()) {
-            setError('Title is required')
-            return
-        }
-        if (!isValidSemesterFormat(formData.semester)) {
-            setError('Semester must be in format: YYYY, Fall or YYYY, Spring')
-            return
+            setError('Title is required');
+            return;
         }
 
         if (!rosterFile) {
-            setError('Roster CSV is required for class creation')
-            return
+            setError('Roster CSV is required for class creation');
+            return;
         }
 
         try {
-            const data = new FormData()
-            data.append('title', formData.title.trim())
-            data.append('code', formData.code.trim() || '')
-            data.append('semester', formData.semester.trim() || '')
-            data.append('rosterFile', rosterFile)
+            //Start by making class
+            const resA = await axios.post(`${API_BASE}/addClass`, {
+                profId: profId,
+                title: formData.title.trim(),
+                code: formData.code.trim() || null,
+                semester: formData.semester.trim() || null,
+            });
 
-            const res = await axios.post(`${API_BASE}/professors/${profId}/classes`, data, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            })
-
-            if (!res.data || !res.data.success) {
-                throw new Error(res.data?.message || 'Failed to add class')
+            if (!resA.data || !resA.data.success) {
+                throw new Error(resA.data?.message || 'Failed to add class');
             }
 
-            await loadProfessorClasses()
-            setFormData({ title: '', code: '', semester: '' })
-            setRosterFile(null)
-            setShowForm(false)
+            const classId = resA.data.class.id;
+
+            //Parse CSV
+            const students = await new Promise<any[]>((resolve, reject) => {
+                Papa.parse(rosterFile, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: (results) => {
+                        try {
+                            const cleanName = (name: string) =>
+                                name.replace(/^(Mr\.|Ms\.|Mrs\.)\s*/i, '').trim();
+
+                            const parsed = results.data
+                                .map((row: any) => ({
+                                    studentID: Number(row['Student ID']),
+                                    studentName: cleanName(
+                                        row['Student Name'] || row['Name'] || ''
+                                    ),
+                                    classID: classId
+                                }))
+                                .filter((s: any) => s.studentID && s.studentName);
+
+                            resolve(parsed);
+                        } catch (err) {
+                            reject(err);
+                        }
+                    },
+                    error: reject
+                });
+            });
+
+            console.log('Parsed students:', students);
+
+            //Sends roster to backend
+            console.log('Sending roster to backend:', students);
+            await axios.post(`${API_BASE}/admin/roster`, {
+                students
+            });
+
+            //Updates UI
+            setClasses(c => [...c, resA.data.class]);
+            setFormData({ title: '', code: '', semester: ''});
+            setRosterFile(null);
+            setShowForm(false);
+
         } catch (err: any) {
-            setError(err.response?.data?.message || err.message || 'Error adding class')
+            console.error(err);
+            setError(err.response?.data?.message || err.message || 'Error adding class');
         }
-    }
+    };
 
     const handleDeleteClass = async (classId: number) => {
         if (!window.confirm('Delete this class?')) return
@@ -112,37 +150,70 @@ function ProfPg() {
 
     const handleReuploadRoster = async () => {
         if (!selectedClass) {
-            setError('Select a class first')
-            return
+            setError('Select a class first');
+            return;
         }
+
         if (!reuploadFile) {
-            setError('Choose a roster CSV to reupload')
-            return
+            setError('Choose a roster CSV to reupload');
+            return;
         }
 
-        setError(null)
-        setReuploading(true)
-        try {
-            const data = new FormData()
-            data.append('rosterFile', reuploadFile)
-            const res = await axios.post(
-                `${API_BASE}/professors/${profId}/classes/${selectedClass.id}/roster`,
-                data,
-                { headers: { 'Content-Type': 'multipart/form-data' } }
-            )
+        setError(null);
+        setReuploading(true);
 
-            if (!res.data?.success) {
-                throw new Error(res.data?.message || 'Failed to reupload roster')
+        try {
+            Papa.parse(reuploadFile, {
+                header: true,
+                skipEmptyLines: true,
+                complete: async (results: any) => {
+                const parsed = results.data;
+
+                const students = parsed
+                    .map((row: any) => {
+                        const rawId = row["Student ID"];
+                        const rawName = row["Student Name"];
+
+                        if (!rawId || !rawName) return null;
+
+                    return {
+                        studentID: String(rawId).trim(),
+                        studentName: String(rawName)
+                            .replace(/^Mr\.?\s*/i, '') // remove "Mr."
+                            .replace(/^Ms\.?\s*/i, '') // remove "Ms."
+                            .replace(/^Mrs\.?\s*/i, '') // optional
+                            .trim()
+                    };
+                })
+                .filter(Boolean);
+
+            if (students.length === 0) {
+                throw new Error("CSV is empty or invalid");
             }
 
-            await loadProfessorClasses()
-            setReuploadFile(null)
-        } catch (err: any) {
-            setError(err.response?.data?.message || err.message || 'Error reuploading roster')
-        } finally {
-            setReuploading(false)
+            const res = await axios.post(
+                `${API_BASE}/professors/${profId}/classes/${selectedClass.id}/roster`,
+                { students }
+            );
+
+            if (!res.data?.success) {
+                throw new Error(res.data?.message || 'Failed to reupload roster');
+            }
+
+            await loadProfessorClasses();
+            setReuploadFile(null);
+        },
+        error: () => {
+            setError("Error parsing CSV");
         }
-    }
+    });
+
+        } catch (err: any) {
+            setError(err.response?.data?.message || err.message || 'Error reuploading roster');
+        } finally {
+            setReuploading(false);
+        }
+    };
 
     const selectedClass = classes.find(c => c.id === selectedClassId)
 
