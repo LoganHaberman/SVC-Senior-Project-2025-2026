@@ -27,7 +27,16 @@ function ProfPg() {
     const [classes, setClasses] = useState<Class[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
+    const [activeTab, setActiveTab] = useState<'classes' | 'facilitators'>('classes')
     const [showForm, setShowForm] = useState(false)
+
+    // Facilitator management state
+    const [showAddFacilitator, setShowAddFacilitator] = useState(false)
+    const [showDeleteFacilitator, setShowDeleteFacilitator] = useState(false)
+    const [facilitators, setFacilitators] = useState<{ facilitatorID: number; facilitatorName: string; username: string; userId: number }[]>([])
+    const [newFacilitatorName, setNewFacilitatorName] = useState('')
+    const [newFacilitatorUsername, setNewFacilitatorUsername] = useState('')
+    const [newFacilitatorPassword, setNewFacilitatorPassword] = useState('')
     const [selectedClassId, setSelectedClassId] = useState<number | null>(null)
     const [rosterFile, setRosterFile] = useState<File | null>(null)
     const [reuploadFile, setReuploadFile] = useState<File | null>(null)
@@ -243,11 +252,200 @@ function ProfPg() {
                 <div style={{ backgroundColor: '#c9a227', height: 8 }} />
             </div>
             <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 20px 20px 20px' }}>
+            {/* Tab navigation */}
+            <div style={{ display: 'flex', gap: 4, borderBottom: '2px solid #dee2e6', marginBottom: 20, marginTop: 16 }}>
+                <button
+                    onClick={() => setActiveTab('classes')}
+                    style={{
+                        padding: '10px 20px',
+                        backgroundColor: activeTab === 'classes' ? '#0b5d3b' : '#e9ecef',
+                        color: activeTab === 'classes' ? 'white' : '#333',
+                        border: 'none',
+                        borderRadius: '4px 4px 0 0',
+                        cursor: 'pointer',
+                        fontSize: 14,
+                        fontWeight: 'bold'
+                    }}
+                >
+                    Classes
+                </button>
+                <button
+                    onClick={() => setActiveTab('facilitators')}
+                    style={{
+                        padding: '10px 20px',
+                        backgroundColor: activeTab === 'facilitators' ? '#0b5d3b' : '#e9ecef',
+                        color: activeTab === 'facilitators' ? 'white' : '#333',
+                        border: 'none',
+                        borderRadius: '4px 4px 0 0',
+                        cursor: 'pointer',
+                        fontSize: 14,
+                        fontWeight: 'bold'
+                    }}
+                >
+                    Facilitators
+                </button>
+            </div>
             {loading ? <p>Loading...</p> : (
                 <>
                     <h2>{profName || 'Professor'}</h2>
-                    
-                    <div style={{ display: 'flex', gap: 20, justifyContent: 'center', alignItems: 'flex-start' }}>
+
+                    {activeTab === 'facilitators' && (
+                        <div>
+                            <h2>Facilitator Management</h2>
+                            <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+                                <button
+                                    onClick={() => {
+                                        setShowAddFacilitator(true)
+                                        setShowDeleteFacilitator(false)
+                                    }}
+                                    style={{
+                                        padding: '10px 20px',
+                                        backgroundColor: '#28a745',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: 4,
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    Add Facilitators
+                                </button>
+                                <button
+                                    onClick={async () => {
+                                        setShowAddFacilitator(false)
+                                        setShowDeleteFacilitator(true)
+                                        try {
+                                            const res = await axios.get(`${API_BASE}/professor/facilitators`)
+                                            setFacilitators(res.data)
+                                        } catch (err) {
+                                            console.error(err)
+                                            setError('Failed to load facilitators')
+                                        }
+                                    }}
+                                    style={{
+                                        padding: '10px 20px',
+                                        backgroundColor: '#dc3545',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: 4,
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    Delete Facilitators
+                                </button>
+                            </div>
+
+                            {showAddFacilitator && (
+                                <div style={{ border: '1px solid #ccc', padding: 20, borderRadius: 8, marginBottom: 20 }}>
+                                    <h3>Add New Facilitator</h3>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 300 }}>
+                                        
+                                        <input
+                                            type="text"
+                                            placeholder="Username"
+                                            value={newFacilitatorUsername}
+                                            onChange={(e) => setNewFacilitatorUsername(e.target.value)}
+                                            style={{ padding: 8, borderRadius: 4, border: '1px solid #ccc' }}
+                                        />
+                                        <input
+                                            type="password"
+                                            placeholder="Password"
+                                            value={newFacilitatorPassword}
+                                            onChange={(e) => setNewFacilitatorPassword(e.target.value)}
+                                            style={{ padding: 8, borderRadius: 4, border: '1px solid #ccc' }}
+                                        />
+                                        <button
+                                            onClick={async () => {
+                                                if (!newFacilitatorUsername.trim() || !newFacilitatorPassword.trim()) {
+                                                    alert('Please fill in all fields')
+                                                    return
+                                                }
+                                                try {
+                                                    await axios.post(`${API_BASE}/professor/addFacilitator`, {
+                                                        
+                                                        username: newFacilitatorUsername,
+                                                        password: newFacilitatorPassword
+                                                    })
+                                                    alert('Facilitator added successfully')
+                                                    setNewFacilitatorUsername('')
+                                                    setNewFacilitatorPassword('')
+                                                    setShowAddFacilitator(false)
+                                                } catch (err) {
+                                                    console.error(err)
+                                                    alert('Failed to add facilitator')
+                                                }
+                                            }}
+                                            style={{
+                                                padding: '10px',
+                                                backgroundColor: '#007bff',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: 4,
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            Add Facilitator
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {showDeleteFacilitator && (
+                                <div style={{ border: '1px solid #ccc', padding: 20, borderRadius: 8 }}>
+                                    <h3>Delete Facilitators</h3>
+                                    {facilitators.length === 0 ? (
+                                        <p>No facilitators found.</p>
+                                    ) : (
+                                        <ul style={{ listStyle: 'none', padding: 0 }}>
+                                            {facilitators.map((fac) => (
+                                                <li
+                                                    key={fac.userId}
+                                                    style={{
+                                                        display: 'flex',
+                                                        justifyContent: 'space-between',
+                                                        alignItems: 'center',
+                                                        padding: 10,
+                                                        border: '1px solid #eee',
+                                                        borderRadius: 4,
+                                                        marginBottom: 8
+                                                    }}
+                                                >
+                                                    <div>
+                                                        <strong>{fac.facilitatorName}</strong> (Username: {fac.username})
+                                                    </div>
+                                                    <button
+                                                        onClick={async () => {
+                                                            if (!window.confirm(`Are you sure you want to delete ${fac.facilitatorName}?`)) return
+                                                            try {
+                                                                await axios.post(`${API_BASE}/professor/deleteFacilitator`, { userId: fac.userId })
+                                                                setFacilitators(facilitators.filter(f => f.userId !== fac.userId))
+                                                                alert('Facilitator deleted successfully')
+                                                            } catch (err: any) {
+                                                                console.error('Delete error:', err)
+                                                                const errorMessage = err.response?.data?.error || 'Failed to delete facilitator'
+                                                                alert(errorMessage)
+                                                            }
+                                                        }}
+                                                        style={{
+                                                            padding: '6px 12px',
+                                                            backgroundColor: '#dc3545',
+                                                            color: 'white',
+                                                            border: 'none',
+                                                            borderRadius: 4,
+                                                            cursor: 'pointer'
+                                                        }}
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {activeTab === 'classes' && <div style={{ display: 'flex', gap: 20, justifyContent: 'center', alignItems: 'flex-start' }}>
                         <div style={{ flex: 1, maxWidth: 350 }}>
                             <h3>Classes</h3>
                             {classes.length === 0 ? (
@@ -398,8 +596,10 @@ function ProfPg() {
                             )}
                         </div>
                     </div>
+                    }
                 </>
             )}
+            
         </div>
         </div>
     )

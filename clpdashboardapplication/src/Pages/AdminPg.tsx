@@ -26,18 +26,33 @@ interface Professor {
   name: string
 }
 
+interface ProfessorAdmin {
+  professorID: number
+  professorName: string
+  username: string
+  userId: number
+}
+
 function AdminPg() {
-  const API_BASE = '/api'
+  const API_BASE = 'http://localhost:5000/api'
   const [classes, setClasses] = useState<ClassRecord[]>([])
   const [selectedClassId, setSelectedClassId] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'manage' | 'reports'>('manage')
+  const [activeTab, setActiveTab] = useState<'manage' | 'reports' | 'professors'>('manage')
   const [showSemesterComparisons, setShowSemesterComparisons] = useState(false)
   const [semesterComparisonSearch, setSemesterComparisonSearch] = useState('')
   const [showClassReports, setShowClassReports] = useState(true)
   const [classReportSearch, setClassReportSearch] = useState('')
   const reportRef = useRef<HTMLDivElement>(null)
+
+  // Professors management states
+  const [professors, setProfessors] = useState<ProfessorAdmin[]>([])
+  const [showAddProfessor, setShowAddProfessor] = useState(false)
+  const [showDeleteProfessor, setShowDeleteProfessor] = useState(false)
+  const [newProfessorUsername, setNewProfessorUsername] = useState('')
+  const [newProfessorPassword, setNewProfessorPassword] = useState('')
+  const [newProfessorName, setNewProfessorName] = useState('')
 
   useEffect(() => {
     const fetchAdminData = async () => {
@@ -267,6 +282,21 @@ function AdminPg() {
         >
           Reports
         </button>
+        <button
+          onClick={() => setActiveTab('professors')}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: activeTab === 'professors' ? '#007bff' : '#e9ecef',
+            color: activeTab === 'professors' ? 'white' : '#333',
+            border: 'none',
+            borderRadius: '4px 4px 0 0',
+            cursor: 'pointer',
+            fontSize: 14,
+            fontWeight: 'bold'
+          }}
+        >
+          Professors
+        </button>
       </div>
 
       {activeTab === 'manage' && (
@@ -322,33 +352,7 @@ function AdminPg() {
                               <td style={{ padding: 10, borderBottom: '1px solid #f0f0f0' }}>{record.studentName}</td>
                               <td style={{ padding: 10, textAlign: 'right', borderBottom: '1px solid #f0f0f0' }}>{record.count}</td>
                               <td style={{ padding: 10, borderBottom: '1px solid #f0f0f0' }}>
-                                <button
-                                  onClick={async () => {
-                                    const input = prompt('Enter new attendance count', String(record.count))
-                                    if (input === null) return
-                                    const trimmedInput = input.trim()
-                                    if (trimmedInput === '') return
-                                    const updatedCount = Number(trimmedInput)
-                                    if (isNaN(updatedCount) || updatedCount < 0) return
-                                    // Edit should not delete; use the Remove button for that.
-                                    if (updatedCount === 0) return
-                                    if (updatedCount === record.count) return
-                                    await updateAttendanceRecord(record.studentId, record.studentName, updatedCount)
-                                  }}
-                                  style={{ marginRight: 8, padding: '6px 10px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  onClick={async () => {
-                                    const confirmed = window.confirm('Are you sure you want to delete this student from this class?')
-                                    if (!confirmed) return
-                                    await updateAttendanceRecord(record.studentId, record.studentName, 0)
-                                  }}
-                                  style={{ padding: '6px 10px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-                                >
-                                  Remove
-                                </button>
+                                
                               </td>
                             </tr>
                           ))}
@@ -613,6 +617,170 @@ function AdminPg() {
           >
             Download PDF Report
           </button>
+        </div>
+      )}
+
+      {activeTab === 'professors' && (
+        <div>
+          <h2>Professor Management</h2>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+            <button
+              onClick={() => {
+                setShowAddProfessor(true)
+                setShowDeleteProfessor(false)
+              }}
+              style={{
+                padding: '10px 20px',
+                backgroundColor: '#28a745',
+                color: 'white',
+                border: 'none',
+                borderRadius: 4,
+                cursor: 'pointer'
+              }}
+            >
+              Add Professors
+            </button>
+            <button
+              onClick={async () => {
+                setShowAddProfessor(false)
+                setShowDeleteProfessor(true)
+                try {
+                  const res = await axios.get(`${API_BASE}/admin/professors`)
+                  setProfessors(res.data)
+                } catch (err) {
+                  console.error(err)
+                  setError('Failed to load professors')
+                }
+              }}
+              style={{
+                padding: '10px 20px',
+                backgroundColor: '#dc3545',
+                color: 'white',
+                border: 'none',
+                borderRadius: 4,
+                cursor: 'pointer'
+              }}
+            >
+              Delete Professors
+            </button>
+          </div>
+
+          {showAddProfessor && (
+            <div style={{ border: '1px solid #ccc', padding: 20, borderRadius: 8, marginBottom: 20 }}>
+              <h3>Add New Professor</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 300 }}>
+                <input
+                  type="text"
+                  placeholder="Professor Name"
+                  value={newProfessorName}
+                  onChange={(e) => setNewProfessorName(e.target.value)}
+                  style={{ padding: 8, borderRadius: 4, border: '1px solid #ccc' }}
+                />
+                <input
+                  type="text"
+                  placeholder="Username"
+                  value={newProfessorUsername}
+                  onChange={(e) => setNewProfessorUsername(e.target.value)}
+                  style={{ padding: 8, borderRadius: 4, border: '1px solid #ccc' }}
+                />
+                <input
+                  type="password"
+                  placeholder="Password"
+                  value={newProfessorPassword}
+                  onChange={(e) => setNewProfessorPassword(e.target.value)}
+                  style={{ padding: 8, borderRadius: 4, border: '1px solid #ccc' }}
+                />
+                <button
+                  onClick={async () => {
+                    if (!newProfessorName.trim() || !newProfessorUsername.trim() || !newProfessorPassword.trim()) {
+                      alert('Please fill in all fields')
+                      return
+                    }
+                    try {
+                      await axios.post(`${API_BASE}/admin/addProfessor`, {
+                        name: newProfessorName,
+                        username: newProfessorUsername,
+                        password: newProfessorPassword
+                      })
+                      alert('Professor added successfully')
+                      setNewProfessorName('')
+                      setNewProfessorUsername('')
+                      setNewProfessorPassword('')
+                      setShowAddProfessor(false)
+                    } catch (err) {
+                      console.error(err)
+                      alert('Failed to add professor')
+                    }
+                  }}
+                  style={{
+                    padding: '10px',
+                    backgroundColor: '#007bff',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: 4,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Add Professor
+                </button>
+              </div>
+            </div>
+          )}
+
+          {showDeleteProfessor && (
+            <div style={{ border: '1px solid #ccc', padding: 20, borderRadius: 8 }}>
+              <h3>Delete Professors</h3>
+              {professors.length === 0 ? (
+                <p>No professors found.</p>
+              ) : (
+                <ul style={{ listStyle: 'none', padding: 0 }}>
+                  {professors.map((prof) => (
+                    <li
+                      key={prof.userId}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: 10,
+                        border: '1px solid #eee',
+                        borderRadius: 4,
+                        marginBottom: 8
+                      }}
+                    >
+                      <div>
+                        <strong>{prof.professorName}</strong> (Username: {prof.username})
+                      </div>
+                      <button
+                        onClick={async () => {
+                          if (!window.confirm(`Are you sure you want to delete ${prof.professorName}?`)) return
+                          try {
+                            console.log('Deleting professor with userId:', prof.userId)
+                            await axios.post(`${API_BASE}/admin/deleteProfessor`, { userId: prof.userId })
+                            setProfessors(professors.filter(p => p.userId !== prof.userId))
+                            alert('Professor deleted successfully')
+                          } catch (err: any) {
+                            console.error('Delete error:', err)
+                            const errorMessage = err.response?.data?.error || 'Failed to delete professor'
+                            alert(errorMessage)
+                          }
+                        }}
+                        style={{
+                          padding: '6px 12px',
+                          backgroundColor: '#dc3545',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: 4,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
