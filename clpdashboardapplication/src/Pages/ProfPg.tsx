@@ -161,7 +161,7 @@ function ProfPg() {
         setError(null)
         
         try {
-            const res = await axios.delete(`${API_BASE}/professors/${profId}/classes/${classId}`)
+            const res = await axios.delete(`${API_BASE}/classes/${classId}`)
             if (!res.data || !res.data.success) throw new Error('Failed to delete class')
             setClasses(c => c.filter(cls => cls.id !== classId))
             setSelectedClassId(null)
