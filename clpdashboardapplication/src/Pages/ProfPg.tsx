@@ -56,22 +56,29 @@ function ProfPg() {
         loadProfessorClasses()
     }, [loadProfessorClasses])
 
-const handleAddClass = async (e: FormEvent) => {
+    const handleAddClass = async (e: FormEvent) => {
         e.preventDefault();
         setError(null);
+
+        console.log('CHECK 1')
 
         if (!formData.title.trim()) {
             setError('Title is required');
             return;
         }
 
+        console.log('CHECK 2')
+
         if (!rosterFile) {
             setError('Roster CSV is required for class creation');
             return;
         }
 
+        console.log('CHECK 3')
+
         try {
             //Start by making class
+            console.log ('Creating class with data:', profId);
             const resA = await axios.post(`${API_BASE}/addClass`, {
                 profId: profId,
                 title: formData.title.trim(),
@@ -79,11 +86,15 @@ const handleAddClass = async (e: FormEvent) => {
                 semester: formData.semester.trim() || null,
             });
 
-            if (!resA.data || !resA.data.success) {
+            console.log('Class creation response:', resA.data);
+
+            if (!resA.data) {
                 throw new Error(resA.data?.message || 'Failed to add class');
             }
 
-            const classId = resA.data.class.id;
+            console.log('Class created with ID:', resA.data.id);
+
+            const classId = resA.data.id;
 
             //Parse CSV
             const students = await new Promise<any[]>((resolve, reject) => {
@@ -127,6 +138,8 @@ const handleAddClass = async (e: FormEvent) => {
             setFormData({ title: '', code: '', semester: ''});
             setRosterFile(null);
             setShowForm(false);
+
+            await loadProfessorClasses();
 
         } catch (err: any) {
             console.error(err);
@@ -215,6 +228,7 @@ const handleAddClass = async (e: FormEvent) => {
         }
     };
 
+    console.log('Rendering ProfPg with classes:', classes)
     const selectedClass = classes.find(c => c.id === selectedClassId)
 
     return (
