@@ -622,6 +622,23 @@ app.post("/api/professors/:profId/classes/:classId/roster", (req, res) => {
   });
 });
 
+app.delete("/api/classes/:classId", (req, res) => {
+  const classId = req.params.classId;
+
+  db.query(
+    "DELETE FROM Classes WHERE classID = ?",
+    [classId],
+    (err, result) => {
+      if (err) {
+        console.error(err);
+        return res.status(500).json({ success: false, message: "Delete failed" });
+      }
+
+      res.json({ success: true });
+    }
+  );
+});
+
 app.delete("/api/deleteClass", (req, res) => {
   const { classId } = req.body;
 
