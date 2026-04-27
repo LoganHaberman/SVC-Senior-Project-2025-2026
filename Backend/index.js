@@ -230,6 +230,128 @@ app.delete("/api/removeStudent", (req, res) => {
     }
   );
 });
+//Backup login stuff
+//lines 233 - 308
+
+//Admin professor management
+app.get("/api/admin/professors", (req, res) => {
+  db.query("SELECT p.professorID, p.professorName, u.username, u.idUsers as userId FROM Professors p JOIN Users u ON p.userID = u.idUsers WHERE u.role = 'professor'", (err, result) => {
+    if (err) return res.status(500).json({ error: err });
+    res.json(result);
+  });
+});
+
+app.post("/api/admin/addProfessor", (req, res) => {
+  const { username, password, name } = req.body;
+
+  if (!username || !password || !name) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  // Insert into Users
+  db.query("INSERT INTO Users (username, password, role) VALUES (?, ?, 'professor')", [username.trim(), password.trim()], (err, userResult) => {
+    if (err) return res.status(500).json({ error: err });
+
+    const userId = userResult.insertId;
+
+    // Insert into Professors
+    db.query("INSERT INTO Professors (professorName, userID) VALUES (?, ?)", [name.trim(), userId], (err2) => {
+      if (err2) return res.status(500).json({ error: err2 });
+
+      res.json({ success: true, message: "Professor added successfully" });
+    });
+  });
+});
+
+app.post("/api/admin/deleteProfessor", (req, res) => {
+  console.log('deleteProfessor request headers:', req.headers);
+  console.log('deleteProfessor request body:', req.body);
+  console.log('deleteProfessor request query:', req.query);
+  const userIdRaw = (req.body && req.body.userId !== undefined) ? req.body.userId : req.query.userId;
+  const userId = Number(userIdRaw);
+
+  if (userIdRaw === null || userIdRaw === undefined || Number.isNaN(userId)) {
+    return res.status(400).json({ error: "Missing userId" });
+  }
+
+  // First check if professor exists and get professorID
+  db.query("SELECT professorID FROM Professors WHERE userID = ?", [userId], (err, profResult) => {
+    if (err) return res.status(500).json({ error: err });
+
+    if (profResult.length === 0) {
+      return res.status(404).json({ error: "Professor not found" });
+    }
+
+    const professorID = profResult[0].professorID;
+
+    // Check if professor has any classes
+    db.query("SELECT COUNT(*) as classCount FROM Classes WHERE professorID = ?", [professorID], (err, classResult) => {
+      if (err) return res.status(500).json({ error: err });
+
+      if (classResult[0].classCount > 0) {
+        return res.status(400).json({ error: "Cannot delete professor with existing classes. Please reassign or delete their classes first." });
+      }
+
+      // Delete from Professors first
+      db.query("DELETE FROM Professors WHERE userID = ?", [userId], (err) => {
+        if (err) return res.status(500).json({ error: err });
+
+        // Then delete from Users
+        db.query("DELETE FROM Users WHERE idUsers = ?", [userId], (err2) => {
+          if (err2) return res.status(500).json({ error: err2 });
+
+          res.json({ success: true, message: "Professor deleted successfully" });
+        });
+      });
+    });
+  });
+});
+
+//Professor Facilitator management
+app.get("/api/professor/facilitators", (req, res) => {
+  db.query(
+    "SELECT u.username, u.idUsers as userId FROM Users u WHERE u.role = 'student'",
+    (err, result) => {
+      if (err) return res.status(500).json({ error: err });
+      res.json(result);
+    }
+  );
+});
+
+app.post("/api/professor/addFacilitator", (req, res) => {
+  const { username, password} = req.body;
+
+  if (!username || !password) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  // Insert into Users
+  db.query(
+    "INSERT INTO Users (username, password, role) VALUES (?, ?, 'student')",
+    [username.trim(), password.trim()],
+    (err, userResult) => {
+      if (err) return res.status(500).json({ error: err });
+
+      const userId = userResult.insertId;
+
+    }
+  );
+});
+
+app.post("/api/professor/deleteFacilitator", (req, res) => {
+  const userIdRaw = (req.body && req.body.userId !== undefined) ? req.body.userId : req.query.userId;
+  const userId = Number(userIdRaw);
+
+  if (userIdRaw === null || userIdRaw === undefined || Number.isNaN(userId)) {
+    return res.status(400).json({ error: "Missing userId" });
+  }
+
+      // Then delete from Users
+  db.query("DELETE FROM Users WHERE idUsers = ?", [userId], (err2) => {
+    if (err2) return res.status(500).json({ error: err2 });
+    res.json({ success: true, message: "Facilitator deleted successfully" });
+  });
+});
 
 //Professor Page Stuff
 app.get("/api/getProfClasses", (req, res) => {
