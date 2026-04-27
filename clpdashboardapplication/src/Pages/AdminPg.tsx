@@ -352,33 +352,7 @@ function AdminPg() {
                               <td style={{ padding: 10, borderBottom: '1px solid #f0f0f0' }}>{record.studentName}</td>
                               <td style={{ padding: 10, textAlign: 'right', borderBottom: '1px solid #f0f0f0' }}>{record.count}</td>
                               <td style={{ padding: 10, borderBottom: '1px solid #f0f0f0' }}>
-                                <button
-                                  onClick={async () => {
-                                    const input = prompt('Enter new attendance count', String(record.count))
-                                    if (input === null) return
-                                    const trimmedInput = input.trim()
-                                    if (trimmedInput === '') return
-                                    const updatedCount = Number(trimmedInput)
-                                    if (isNaN(updatedCount) || updatedCount < 0) return
-                                    // Edit should not delete; use the Remove button for that.
-                                    if (updatedCount === 0) return
-                                    if (updatedCount === record.count) return
-                                    await updateAttendanceRecord(record.studentId, record.studentName, updatedCount)
-                                  }}
-                                  style={{ marginRight: 8, padding: '6px 10px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  onClick={async () => {
-                                    const confirmed = window.confirm('Are you sure you want to delete this student from this class?')
-                                    if (!confirmed) return
-                                    await updateAttendanceRecord(record.studentId, record.studentName, 0)
-                                  }}
-                                  style={{ padding: '6px 10px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}
-                                >
-                                  Remove
-                                </button>
+                                
                               </td>
                             </tr>
                           ))}
