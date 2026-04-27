@@ -491,9 +491,9 @@ app.post("/api/addClass", (req, res) => {
       const professorID = profResult[0].professorID;
 
       db.query(
-        `INSERT INTO Classes (title, classCode, semester)
-         VALUES (?, ?, ?)`,
-        [title, code || null, semester || null],
+        `INSERT INTO Classes (title, classCode, semester, professorID)
+         VALUES (?, ?, ?, ?)`,
+        [title, code || null, semester || null, professorID],
         (err, classResult) => {
           if (err) return res.status(500).json({ error: err });
 
@@ -504,6 +504,7 @@ app.post("/api/addClass", (req, res) => {
             title,
             code,
             semester,
+            professorID,
             sessions: []
           });
         }
