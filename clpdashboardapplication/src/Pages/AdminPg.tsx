@@ -60,10 +60,11 @@ function AdminPg() {
         setLoading(true)
         const profRes = await axios.get(`${API_BASE}/professors/list`)
         const professors: Professor[] = profRes.data || []
+        console.log('Fetched professors:', professors)
 
         const classLists = await Promise.all(
           professors.map(async (prof) => {
-            const res = await axios.get(`${API_BASE}/getProfClasses`, { params: { userId: prof.id } })
+            const res = await axios.get(`${API_BASE}/getProfClasses`, { params: { professorID: prof.id } })
             const data = res.data || {}
             return (data.classes || []).map((cls: any) => ({
               id: cls.id,
