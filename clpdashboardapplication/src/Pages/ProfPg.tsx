@@ -20,7 +20,7 @@ type Class = {
 }
 
 function ProfPg() {
-    const API_BASE = '/CLP3/api'
+    const API_BASE = '/CLP/api'
     const profId = parseInt(localStorage.getItem('userId') || '3', 10)
 
     const [profName, setProfName] = useState<string>('')
