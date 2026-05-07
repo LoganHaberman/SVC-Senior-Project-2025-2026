@@ -19,7 +19,7 @@ const ProtectedRoute = ({ element, allowedRoles }: { element: React.ReactElement
 
 function App() { 
   return ( 
-    <BrowserRouter basename="/CLP3"> 
+    <BrowserRouter basename="/CLP"> 
       <Routes> 
         <Route path="/" element={<LoginPg />} /> 
         <Route path="/facilitatordash" element={ 
@@ -37,4 +37,4 @@ function App() {
   ); 
 } 
 
-export default App; 
+export default App;
