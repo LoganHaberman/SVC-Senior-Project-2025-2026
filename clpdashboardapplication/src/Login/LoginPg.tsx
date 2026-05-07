@@ -9,7 +9,7 @@ import axios from 'axios';
  */
 const LoginPg: React.FC = () => {
 
-  const API_BASE = '/api';
+  const API_BASE = '/CLP3/api';
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');

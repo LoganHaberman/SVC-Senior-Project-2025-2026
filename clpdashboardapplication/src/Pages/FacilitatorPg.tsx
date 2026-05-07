@@ -31,7 +31,7 @@ interface Sessiondata {
 }
 
 function FacilitatorPg() {
-    const API_BASE = '/api'
+    const API_BASE = '/CLP3/api'
     const normalizeStudentId = (raw: string): string | null => {
         const digits = String(raw ?? '').replace(/\D/g, '')
         if (!digits) return null
