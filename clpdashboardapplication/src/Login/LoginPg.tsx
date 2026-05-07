@@ -9,7 +9,7 @@ import axios from 'axios';
  */
 const LoginPg: React.FC = () => {
 
-  const API_BASE = '/CLP3/api';
+  const API_BASE = '/CLP/api';
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -31,6 +31,7 @@ const LoginPg: React.FC = () => {
       }
 
       localStorage.setItem('userId', String(response.data.userId));
+	  localStorage.setItem('role', response.data.role);
       const userRole = response.data.role;
       if (userRole === 'student') navigate('/facilitatordash');
       else if (userRole === 'professor') navigate('/professordash');
