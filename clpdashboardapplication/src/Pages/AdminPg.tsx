@@ -15,9 +15,86 @@ const LoginPg: React.FC = () => {
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
+<<<<<<< HEAD
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+=======
+interface ProfessorAdmin {
+  professorID: number
+  professorName: string
+  username: string
+  userId: number
+}
+
+function AdminPg() {
+  const API_BASE = 'http://localhost:5000/api'
+  const [classes, setClasses] = useState<ClassRecord[]>([])
+  const [selectedClassId, setSelectedClassId] = useState<string>('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'manage' | 'reports' | 'professors'>('manage')
+  const [showSemesterComparisons, setShowSemesterComparisons] = useState(false)
+  const [semesterComparisonSearch, setSemesterComparisonSearch] = useState('')
+  const [showClassReports, setShowClassReports] = useState(true)
+  const [classReportSearch, setClassReportSearch] = useState('')
+  const reportRef = useRef<HTMLDivElement>(null)
+
+  // Professors management states
+  const [professors, setProfessors] = useState<ProfessorAdmin[]>([])
+  const [showAddProfessor, setShowAddProfessor] = useState(false)
+  const [showDeleteProfessor, setShowDeleteProfessor] = useState(false)
+  const [newProfessorUsername, setNewProfessorUsername] = useState('')
+  const [newProfessorPassword, setNewProfessorPassword] = useState('')
+  const [newProfessorName, setNewProfessorName] = useState('')
+
+  useEffect(() => {
+    const fetchAdminData = async () => {
+      try {
+        setLoading(true)
+        const profRes = await axios.get(`${API_BASE}/professors/list`)
+        const professors: Professor[] = profRes.data || []
+        console.log('Fetched professors:', professors)
+
+        const classLists = await Promise.all(
+          professors.map(async (prof) => {
+            const res = await axios.get(`${API_BASE}/getProfClasses`, { params: { professorID: prof.id } })
+            const data = res.data || {}
+            return (data.classes || []).map((cls: any) => ({
+              id: cls.id,
+              title: cls.title,
+              classCode: cls.code,
+              semester: cls.semester,
+              profId: prof.id,
+              professorName: prof.name,
+              uniqueId: `${prof.id}-${cls.id}`,
+              students: cls.students || [],
+              attendance: cls.attendance || []
+            }))
+          })
+        )
+
+        setClasses(classLists.flat())
+      } catch (err) {
+        console.error(err)
+        setError('Failed to load admin data')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchAdminData()
+  }, [])
+
+  const selectedClass = classes.find((cls) => cls.uniqueId === selectedClassId)
+
+  const updateAttendanceRecord = async (
+    studentId: number | string | undefined,
+    studentName: string,
+    count: number
+  ) => {
+    if (!selectedClass) return
+>>>>>>> 5abfc72799c5257880e7a35b896731c64995f21a
 
     try {
       const response = await axios.post(`${API_BASE}/login`, {

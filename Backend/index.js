@@ -355,16 +355,16 @@ app.post("/api/professor/deleteFacilitator", (req, res) => {
 
 //Professor Page Stuff
 app.get("/api/getProfClasses", (req, res) => {
-  const userId = req.query.userId;
+  const professorID = req.query.professorID;
 
-  if (!userId) {
-    return res.status(400).json({ message: "Missing userId" });
+  if (!professorID) {
+    return res.status(400).json({ message: "Missing professorID" });
   }
 
   //Get professor
   db.query(
-    "SELECT professorID, professorName FROM Professors WHERE userID = ?",
-    [userId],
+    "SELECT professorID, professorName FROM Professors WHERE professorID = ?",
+    [professorID],
     (err, profResult) => {
       if (err) return res.status(500).json({ error: err });
 
