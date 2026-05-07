@@ -31,7 +31,7 @@ interface Sessiondata {
 }
 
 function FacilitatorPg() {
-    const API_BASE = '/CLP3/api'
+    const API_BASE = '/CLP/api'
     const normalizeStudentId = (raw: string): string | null => {
         const digits = String(raw ?? '').replace(/\D/g, '')
         if (!digits) return null
@@ -153,14 +153,13 @@ function FacilitatorPg() {
         setTimeout(() => setCardData(''), 1000);
     };
 
-    const parseStudentId = (data: string): string | null => {
-        const normalized = normalizeStudentId(data)
-        if (!normalized) {
-            console.warn('No valid student id found in card data');
-            return null
-        }
-        return normalized
-    };
+    const parseStudentId = (cardData: string): string | null => {
+		const stripped = cardData.replace(/^;/, '').replace(/\?$/, '').trim();
+       	const withoutLeadingZeros = stripped.replace(/^0+/, '');
+       	const studentId = withoutLeadingZeros.slice(0, 6);
+    	if (!studentId || studentId.length < 1) return null;
+    	return studentId;
+	};
 
     const saveAttendance = async (studentId: string) => {
         try {
@@ -305,10 +304,11 @@ function FacilitatorPg() {
 
             {/* Session Selection */}
             {selectedClass && (
-                <div style={{ marginBottom: 20 }}>
+                <div style={{ marginBottom: 20, width: '100%', maxWidth: 500  }}>
                     <h2>Select Session</h2>
                     <select
                         onChange={e => setSelectedSessionNumber(Number(e.target.value))}
+						style={{ padding: 10, width: 300 }}
                     >
                         <option value="">-- Choose a session --</option>
                         {sessions.map(s => (
