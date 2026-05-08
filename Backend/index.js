@@ -22,8 +22,9 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: false,
-    sameSite: "lax"
+    secure: true,
+    sameSite: "none"
+    maxAge: 24 * 50 * 60 * 1000
   }
 }));
 
@@ -133,6 +134,17 @@ app.post("/saml/acs",
   (req, res) => {
     const user = req.user;
     if (!user) return res.redirect("https://cis2.stvincent.edu/CLP/?error=user_not_found");
+
+    const role = user.role;
+    const userId = user.idUsers;
+
+    if (role === "admin")     return res.redirect(`https://cis2.stvincent.edu/CLP/admindash?sso=1&role=${role}&userId=${userId}`);
+    if (role === "professor") return res.redirect(`https://cis2.stvincent.edu/CLP/professordash?sso=1&role=${role}&userId=${userId}`);
+    if (role === "student")   return res.redirect(`https://cis2.stvincent.edu/CLP/facilitatordash?sso=1&role=${role}&userId=${userId}`);
+
+    res.redirect("https://cis2.stvincent.edu/CLP/?error=unknown_role");
+  }
+);
 
     const role = user.role;
     console.log("SSO login success:", user.username, role);
