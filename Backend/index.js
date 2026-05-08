@@ -44,8 +44,6 @@ db.getConnection(err => {
   else console.log("MySQL Connected!");
 });
 
-// ─── SAML SETUP ───────────────────────────────────────────────
-
 const AZURE_CERT = `MIIC8DCCAdigAwIBAgIQJtWrJd2L6K5GMvuM3CH6fzANBgkqhkiG9w0BAQsFADA0MTIwMAYDVQQD
 EylNaWNyb3NvZnQgQXp1cmUgRmVkZXJhdGVkIFNTTyBDZXJ0aWZpY2F0ZTAeFw0yNjA0MjMxMzMw
 MzNaFw0yOTA0MjMxMzMwMzNaMDQxMjAwBgNVBAMTKU1pY3Jvc29mdCBBenVyZSBGZWRlcmF0ZWQg
@@ -104,7 +102,6 @@ passport.deserializeUser((id, done) => {
 
 // ─── SAML ROUTES ──────────────────────────────────────────────
 
-// Metadata — Azure needs this
 app.get("/saml/metadata", (req, res) => {
   res.type("application/xml");
   res.send(`<?xml version="1.0"?>
@@ -119,14 +116,12 @@ app.get("/saml/metadata", (req, res) => {
 </EntityDescriptor>`);
 });
 
-// Start SSO — redirects browser to Microsoft
 app.get("/saml/login",
   passport.authenticate("saml", {
     failureRedirect: "https://cis2.stvincent.edu/CLP/?error=saml_start_failed"
   })
 );
 
-// ACS — Microsoft posts back here after login
 app.post("/saml/acs",
   passport.authenticate("saml", {
     failureRedirect: "https://cis2.stvincent.edu/CLP/?error=auth_failed"
@@ -146,7 +141,6 @@ app.post("/saml/acs",
   }
 );
 
-// Called by frontend to check if user is SSO-logged-in
 app.get("/api/me", (req, res) => {
   if (req.isAuthenticated && req.isAuthenticated() && req.user) {
     return res.json({
@@ -158,7 +152,7 @@ app.get("/api/me", (req, res) => {
   res.status(401).json({ error: "Not authenticated" });
 });
 
-// ─── ALL EXISTING API ROUTES (unchanged) ──────────────────────
+// ─── API ROUTES ───────────────────────────────────────────────
 
 app.post("/api/login", (req, res) => {
   const { username, password } = req.body;
@@ -323,30 +317,115 @@ app.post("/api/professor/deleteFacilitator", (req, res) => {
 });
 
 app.get("/api/getProfClasses", (req, res) => {
-  const professorID = req.query.professorID;
-  if (!professorID) return res.status(400).json({ message: "Missing professorID" });
-  db.query("SELECT professorID, professorName FROM Professors WHERE professorID = ?", [professorID], (err, profResult) => {
-    if (err) return res.status(500).json({ error: err });
-    if (profResult.length === 0) return res.status(404).json({ message: "Professor not found" });
-    const professor = profResult[0];
-    db.query("SELECT classID, title, classCode, semester FROM Classes WHERE professorID = ?", [professor.professorID], (err, classResults) => {
+  const rawId = req.query.professorID || req.query.userId;
+  if (!rawId) return res.status(400).json({ message: "Missing professorID or userId" });
+
+  db.query(
+    "SELECT professorID, professorName FROM Professors WHERE userID = ?",
+    [rawId],
+    (err, profByUser) => {
       if (err) return res.status(500).json({ error: err });
-      if (classResults.length === 0) return res.json({ name: professor.professorName, classes: [] });
-      const classIds = classResults.map(c => c.classID);
-      db.query("SELECT sessionID, sessionNumber, sessionDate, classID FROM Sessions WHERE classID IN (?)", [classIds], (err, sessionResults) => {
-        if (err) return res.status(500).json({ error: err });
-        db.query(`SELECT sc.classID, sc.studentID, st.studentName, COUNT(DISTINCT a.sessionID) AS count FROM StudentClasses sc JOIN Students st ON st.studentID = sc.studentID LEFT JOIN Sessions s ON s.classID = sc.classID LEFT JOIN Attendance a ON a.studentID = sc.studentID AND a.sessionID = s.sessionID WHERE sc.classID IN (?) GROUP BY sc.classID, sc.studentID, st.studentName`, [classIds], (err, attendanceResults) => {
-          if (err) return res.status(500).json({ error: err });
-          const classes = classResults.map(c => {
-            const sessions = sessionResults.filter(s => s.classID === c.classID).map(s => ({ sessionNumber: s.sessionNumber, date: s.sessionDate, attendees: [] }));
-            const attendance = attendanceResults.filter(a => a.classID === c.classID).map(a => ({ studentId: a.studentID, studentName: a.studentName, count: a.count }));
-            return { id: c.classID, title: c.title, code: c.classCode, semester: c.semester, sessions, attendance };
-          });
-          res.json({ name: professor.professorName, classes });
-        });
-      });
-    });
-  });
+
+      const lookupById = (profId) => {
+        db.query(
+          "SELECT classID, title, classCode, semester FROM Classes WHERE professorID = ?",
+          [profId],
+          (err, classResults) => {
+            if (err) return res.status(500).json({ error: err });
+            if (classResults.length === 0) {
+              return db.query(
+                "SELECT professorID, professorName FROM Professors WHERE professorID = ?",
+                [profId],
+                (err, p) => {
+                  if (err) return res.status(500).json({ error: err });
+                  const name = p.length > 0 ? p[0].professorName : '';
+                  return res.json({ name, classes: [] });
+                }
+              );
+            }
+
+            const classIds = classResults.map(c => c.classID);
+
+            db.query(
+              "SELECT sessionID, sessionNumber, sessionDate, classID FROM Sessions WHERE classID IN (?)",
+              [classIds],
+              (err, sessionResults) => {
+                if (err) return res.status(500).json({ error: err });
+
+                db.query(
+                  `SELECT sc.classID, sc.studentID, st.studentName,
+                    COUNT(DISTINCT a.sessionID) AS count
+                   FROM StudentClasses sc
+                   JOIN Students st ON st.studentID = sc.studentID
+                   LEFT JOIN Sessions s ON s.classID = sc.classID
+                   LEFT JOIN Attendance a ON a.studentID = sc.studentID AND a.sessionID = s.sessionID
+                   WHERE sc.classID IN (?)
+                   GROUP BY sc.classID, sc.studentID, st.studentName`,
+                  [classIds],
+                  (err, attendanceResults) => {
+                    if (err) return res.status(500).json({ error: err });
+
+                    db.query(
+                      "SELECT professorID, professorName FROM Professors WHERE professorID = ?",
+                      [profId],
+                      (err, profFinal) => {
+                        if (err) return res.status(500).json({ error: err });
+
+                        const profName = profFinal.length > 0 ? profFinal[0].professorName : '';
+
+                        const classes = classResults.map(c => {
+                          const sessions = sessionResults
+                            .filter(s => s.classID === c.classID)
+                            .map(s => ({
+                              sessionNumber: s.sessionNumber,
+                              date: s.sessionDate,
+                              attendees: []
+                            }));
+
+                          const attendance = attendanceResults
+                            .filter(a => a.classID === c.classID)
+                            .map(a => ({
+                              studentId: a.studentID,
+                              studentName: a.studentName,
+                              count: a.count
+                            }));
+
+                          return {
+                            id: c.classID,
+                            title: c.title,
+                            code: c.classCode,
+                            semester: c.semester,
+                            sessions,
+                            attendance
+                          };
+                        });
+
+                        res.json({ name: profName, classes });
+                      }
+                    );
+                  }
+                );
+              }
+            );
+          }
+        );
+      };
+
+      if (profByUser.length > 0) {
+        lookupById(profByUser[0].professorID);
+      } else {
+        db.query(
+          "SELECT professorID, professorName FROM Professors WHERE professorID = ?",
+          [rawId],
+          (err, profById) => {
+            if (err) return res.status(500).json({ error: err });
+            if (profById.length === 0) return res.status(404).json({ message: "Professor not found" });
+            lookupById(profById[0].professorID);
+          }
+        );
+      }
+    }
+  );
 });
 
 app.post("/api/addClass", (req, res) => {
