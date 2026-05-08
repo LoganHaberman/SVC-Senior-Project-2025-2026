@@ -146,17 +146,6 @@ app.post("/saml/acs",
   }
 );
 
-    const role = user.role;
-    console.log("SSO login success:", user.username, role);
-
-    if (role === "admin")     return res.redirect("https://cis2.stvincent.edu/CLP/admindash");
-    if (role === "professor") return res.redirect("https://cis2.stvincent.edu/CLP/professordash");
-    if (role === "student")   return res.redirect("https://cis2.stvincent.edu/CLP/facilitatordash");
-
-    res.redirect("https://cis2.stvincent.edu/CLP/?error=unknown_role");
-  }
-);
-
 // Called by frontend to check if user is SSO-logged-in
 app.get("/api/me", (req, res) => {
   if (req.isAuthenticated && req.isAuthenticated() && req.user) {
