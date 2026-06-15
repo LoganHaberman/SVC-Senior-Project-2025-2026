@@ -257,9 +257,9 @@ app.get("/api/admin/professors", (req, res) => {
 });
 
 app.post("/api/admin/addProfessor", (req, res) => {
-  const { username, password, name } = req.body;
+  const { username, password, name, email } = req.body;
   if (!username || !password || !name) return res.status(400).json({ error: "Missing required fields" });
-  db.query("INSERT INTO Users (username, password, role) VALUES (?, ?, 'professor')", [username.trim(), password.trim()], (err, userResult) => {
+  db.query("INSERT INTO Users (username, password, role, email) VALUES (?, ?, 'professor', ?)", [username.trim(), password.trim(), email ? email.trim() : null], (err, userResult) => {
     if (err) return res.status(500).json({ error: err });
     db.query("INSERT INTO Professors (professorName, userID) VALUES (?, ?)", [name.trim(), userResult.insertId], (err2) => {
       if (err2) return res.status(500).json({ error: err2 });
@@ -298,9 +298,9 @@ app.get("/api/professor/facilitators", (req, res) => {
 });
 
 app.post("/api/professor/addFacilitator", (req, res) => {
-  const { username, password } = req.body;
+  const { username, password, email } = req.body;
   if (!username || !password) return res.status(400).json({ error: "Missing required fields" });
-  db.query("INSERT INTO Users (username, password, role) VALUES (?, ?, 'student')", [username.trim(), password.trim()], (err, userResult) => {
+  db.query("INSERT INTO Users (username, password, role, email) VALUES (?, ?, 'student', ?)", [username.trim(), password.trim(), email ? email.trim() : null], (err, userResult) => {
     if (err) return res.status(500).json({ error: err });
     res.json({ success: true, userId: userResult.insertId });
   });
